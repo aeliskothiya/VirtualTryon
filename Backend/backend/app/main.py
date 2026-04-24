@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,7 +11,13 @@ from app.routes import admin, auth, recommendations, tryon, users, wardrobe
 from app.services.storage_service import ensure_media_directories
 
 
+logger = logging.getLogger("uvicorn.error")
+
+
 app = FastAPI(title="FashionAI Backend API", version="1.0.0")
+
+import time
+from fastapi import Request
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +26,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def global_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info(
+        f"{request.client.host if request.client else 'unknown'} - "
+        f"\"{request.method} {request.url.path}\" {response.status_code} "
+        f"completed in {process_time:.3f}s"
+    )
+    return response
 
 app.mount("/media", StaticFiles(directory=str(settings.media_root)), name="media")
 
@@ -31,6 +51,23 @@ app.include_router(recommendations.router)
 
 @app.on_event("startup")
 def startup_event():
+    tryon_routes = [
+        {
+            "path": route.path,
+            "methods": sorted(list(route.methods or [])),
+            "endpoint": getattr(route.endpoint, "__name__", str(route.endpoint)),
+        }
+        for route in app.routes
+        if route.path.startswith("/tryon")
+    ]
+    logger.info(
+        "Startup config: project_root=%s vton_repo_dir=%s vton_src_dir=%s vton_weights_dir=%s",
+        settings.project_root,
+        settings.vton_repo_dir,
+        settings.vton_src_dir,
+        settings.vton_weights_dir,
+    )
+    logger.info("Registered tryon routes: %s", tryon_routes)
     ensure_media_directories()
     init_indexes()
     seed_default_pricing(get_db())

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import HTTPException, UploadFile
 from pymongo.database import Database
 
@@ -12,6 +14,9 @@ from app.services.storage_service import (
 )
 from app.services.tryon_service import run_tryon
 from app.utils.helpers import serialize_document, serialize_many, utcnow
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def create_tryon(top_item_id: str, override_photo: UploadFile | None, current_user: dict, db: Database) -> dict:
@@ -63,6 +68,12 @@ def create_tryon(top_item_id: str, override_photo: UploadFile | None, current_us
         updated_job = db.tryon_jobs.find_one({"_id": job["_id"]})
         return serialize_document(updated_job)
     except Exception as exc:
+        logger.exception(
+            "Try-on failed for user_id=%s job_id=%s top_item_id=%s",
+            current_user.get("_id"),
+            job.get("_id"),
+            item.get("_id"),
+        )
         db.tryon_jobs.update_one(
             {"_id": job["_id"]},
             {"$set": {"status": "failed", "error_message": str(exc)}},

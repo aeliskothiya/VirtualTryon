@@ -1,11 +1,16 @@
 import shutil
 import sys
+import logging
+from importlib import import_module
 from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image
 
 from app.core.config import settings
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 def _ensure_vton_import_path() -> None:
@@ -17,9 +22,17 @@ def _ensure_vton_import_path() -> None:
 
 @lru_cache(maxsize=1)
 def _load_pipeline():
+    logger.info(
+        "Initializing TryOnPipeline with repo=%s src=%s weights=%s device=%s",
+        settings.vton_repo_dir,
+        settings.vton_src_dir,
+        settings.vton_weights_dir,
+        settings.vton_device,
+    )
     _ensure_vton_import_path()
     try:
-        from fashn_vton import TryOnPipeline
+        module = import_module("fashn_vton")
+        TryOnPipeline = getattr(module, "TryOnPipeline")
     except ImportError as exc:
         raise RuntimeError(
             "Could not import fashn_vton. Start FastAPI from the Conda environment where "
@@ -39,10 +52,20 @@ def run_tryon(person_image_path: str | Path, garment_image_path: str | Path, out
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if settings.tryon_mock_mode:
+        logger.info("Try-on mock mode enabled, copying input image to output")
         shutil.copy(person_image_path, output_path)
         return
 
+    logger.info(
+        "Try-on request: person=%s garment=%s output=%s weights=%s",
+        person_image_path,
+        garment_image_path,
+        output_path,
+        settings.vton_weights_dir,
+    )
+
     if not settings.vton_weights_dir.exists():
+        logger.error("VTON weights directory missing: %s", settings.vton_weights_dir)
         raise RuntimeError(f"VTON weights directory not found: {settings.vton_weights_dir}")
 
     pipeline = _load_pipeline()

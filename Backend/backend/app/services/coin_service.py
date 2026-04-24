@@ -1,21 +1,7 @@
 from pymongo import ReturnDocument
 from pymongo.database import Database
 
-from app.core.config import settings
 from app.utils.helpers import utcnow
-
-
-def seed_default_pricing(db: Database) -> None:
-    defaults = {
-        "tryon": settings.default_tryon_price,
-        "recommendation": settings.default_recommendation_price,
-    }
-    for feature, amount in defaults.items():
-        db.pricing.update_one(
-            {"feature": feature},
-            {"$set": {"feature": feature, "coin_cost": amount, "updated_at": utcnow()}},
-            upsert=True,
-        )
 
 
 def log_transaction(
@@ -75,4 +61,5 @@ def charge_feature(db: Database, user: dict, feature: str, reference_id: str | N
     )
     return pricing["coin_cost"]
 
-__all__ = ["charge_feature", "credit_user", "log_transaction", "seed_default_pricing"]
+__all__ = ["charge_feature", "credit_user", "log_transaction"]
+

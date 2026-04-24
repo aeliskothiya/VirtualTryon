@@ -10,6 +10,16 @@ from app.schemas import TryOnJobOut
 router = APIRouter(prefix="/tryon", tags=["tryon"])
 
 
+@router.get("")
+def tryon_route_help() -> dict:
+    return {
+        "message": "Use POST /tryon for try-on generation.",
+        "required_form_fields": ["top_item_id"],
+        "optional_form_fields": ["override_photo"],
+        "history_endpoint": "GET /tryon/history",
+    }
+
+
 @router.post("", response_model=TryOnJobOut, status_code=status.HTTP_201_CREATED)
 async def create_tryon_route(
     top_item_id: str = Form(...),

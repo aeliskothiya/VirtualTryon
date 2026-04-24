@@ -12,7 +12,7 @@ Set-Location $backendRoot
 $env:PYTHONPATH = $repoRoot
 
 Write-Host "Starting backend from $backendRoot using Python at $pythonExe..."
-Write-Host "Docs: http://127.0.0.1:8000/docs"
+Write-Host "Docs: http://127.0.0.1:8001/docs"
 Write-Host "PYTHONPATH: $env:PYTHONPATH"
 
-& $pythonExe -m uvicorn app.main:app --reload
+& $pythonExe -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload --access-log --log-level info

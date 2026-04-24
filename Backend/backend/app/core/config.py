@@ -4,14 +4,29 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
+def _clean(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
 def _as_bool(value: str | None, default: bool) -> bool:
+    value = _clean(value)
     if value is None:
         return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    return value.lower() in {"1", "true", "yes", "on"}
 
 
 env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
+
+
+def _resolve_existing_path(candidates: list[Path]) -> Path | None:
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
 
 
 class Settings:
@@ -23,19 +38,36 @@ class Settings:
         self.user_media_root = self.media_root / "users"
         self.wardrobe_media_root = self.media_root / "wardrobe"
         self.tryon_media_root = self.media_root / "tryon"
-        self.vton_repo_dir = self.project_root / "TryOn" / "fashn-vton-1.5"
+        vton_repo_env = _clean(os.getenv("VTON_REPO_DIR"))
+        vton_repo_candidates = [
+            Path(vton_repo_env) if vton_repo_env else None,
+            self.project_root / "TryOn" / "fashn-vton-1.5",
+            self.backend_root / "TryOn" / "fashn-vton-1.5",
+        ]
+        self.vton_repo_dir = _resolve_existing_path([p for p in vton_repo_candidates if p is not None]) or (
+            self.project_root / "TryOn" / "fashn-vton-1.5"
+        )
         self.vton_src_dir = self.vton_repo_dir / "src"
-        self.vton_weights_dir = Path(os.getenv("VTON_WEIGHTS_DIR", str(self.vton_repo_dir / "weights")))
+        vton_weights_env = _clean(os.getenv("VTON_WEIGHTS_DIR"))
+        vton_weights_candidates = [
+            Path(vton_weights_env) if vton_weights_env else None,
+            self.vton_repo_dir / "weights",
+            self.backend_root / "TryOn" / "fashn-vton-1.5" / "weights",
+            self.project_root / "TryOn" / "fashn-vton-1.5" / "weights",
+        ]
+        self.vton_weights_dir = _resolve_existing_path([p for p in vton_weights_candidates if p is not None]) or (
+            Path(vton_weights_env) if vton_weights_env else self.vton_repo_dir / "weights"
+        )
 
         self.default_tryon_price = int(os.getenv("DEFAULT_TRYON_PRICE", "5"))
         self.default_recommendation_price = int(os.getenv("DEFAULT_RECOMMENDATION_PRICE", "3"))
         self.default_registration_bonus = int(os.getenv("DEFAULT_REGISTRATION_BONUS", "50"))
-        self.admin_creation_secret = os.getenv("ADMIN_CREATION_SECRET", "")
+        self.admin_creation_secret = _clean(os.getenv("ADMIN_CREATION_SECRET")) or ""
 
         self.tryon_mock_mode = _as_bool(os.getenv("TRYON_MOCK_MODE"), default=False)
-        self.vton_device = os.getenv("VTON_DEVICE", "cuda")
-        self.vton_category = os.getenv("VTON_CATEGORY", "tops")
-        self.vton_garment_photo_type = os.getenv("VTON_GARMENT_PHOTO_TYPE", "flat-lay")
+        self.vton_device = _clean(os.getenv("VTON_DEVICE")) or "cuda"
+        self.vton_category = _clean(os.getenv("VTON_CATEGORY")) or "tops"
+        self.vton_garment_photo_type = _clean(os.getenv("VTON_GARMENT_PHOTO_TYPE")) or "flat-lay"
         self.vton_num_timesteps = int(os.getenv("VTON_NUM_TIMESTEPS", "30"))
         self.vton_guidance_scale = float(os.getenv("VTON_GUIDANCE_SCALE", "2.0"))
         self.vton_seed = int(os.getenv("VTON_SEED", "42"))

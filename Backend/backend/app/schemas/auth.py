@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, EmailStr, Field
+
+from app.schemas.user import UserProfile
 
 
 class TokenData(BaseModel):
@@ -19,24 +19,9 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=6, max_length=128)
 
 
-class UserProfile(BaseModel):
-    id: str
-    name: str
-    email: EmailStr
-    profile_photo_url: str | None = None
-    gender_preference: str | None = None
-    coin_balance: int
-    is_fully_registered: bool
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserProfile
 
-__all__ = ["AuthResponse", "LoginRequest", "RegisterStepOneRequest", "TokenData", "UserProfile"]
+__all__ = ["AuthResponse", "LoginRequest", "RegisterStepOneRequest", "TokenData"]
