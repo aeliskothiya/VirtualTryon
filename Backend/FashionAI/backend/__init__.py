@@ -1,1 +1,0 @@
-"""FashionAI backend package."""

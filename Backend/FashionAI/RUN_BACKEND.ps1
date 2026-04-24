@@ -1,20 +1,8 @@
-$ErrorActionPreference = "Stop"
+$newRunner = "D:\VirtualTryon\Backend\backend\RUN_BACKEND.ps1"
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
-$backendRoot = $PSScriptRoot
-$condaBase = "D:\Anaconda3"
-$condaHook = Join-Path $condaBase "shell\condabin\conda-hook.ps1"
-
-if (-not (Test-Path $condaHook)) {
-    throw "Conda hook not found at $condaHook"
+if (-not (Test-Path $newRunner)) {
+    throw "New backend runner not found at $newRunner"
 }
 
-& $condaHook | Out-Null
-conda activate vton
-
-Set-Location $backendRoot
-
-Write-Host "Starting FashionAI backend from $backendRoot using Conda env 'vton'..."
-Write-Host "Docs: http://127.0.0.1:8000/docs"
-
-uvicorn main:app --reload
+Write-Host "FashionAI runner now forwards to the new backend structure..."
+& powershell -ExecutionPolicy Bypass -File $newRunner
