@@ -25,7 +25,12 @@ logs/
 # FashionAI: do not upload datasets
 # -----------------------------
 FashionAI/datasets/
+<<<<<<< HEAD
 FashionAI/models/*.pth
+=======
+FashionAI/models/
+FashionAI/assets/input/
+>>>>>>> c39aff2 (Initial upload: FashionAI + TryOn (datasets and generated files excluded))
 FashionAI/assets/output/
 FashionAI/assets/result/
 
@@ -39,3 +44,8 @@ TryOn/fashn-vton-1.5/debug_outputs/
 TryOn/fashn-vton-1.5/test_outputs/
 TryOn/fashn-vton-1.5/test_outputs_*/
 TryOn/fashn-vton-1.5/weights/
+<<<<<<< HEAD
+=======
+TryOn/static/uploads/
+TryOn/static/results/
+>>>>>>> c39aff2 (Initial upload: FashionAI + TryOn (datasets and generated files excluded))
