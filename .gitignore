@@ -1,0 +1,41 @@
+# Global ignores
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temp
+*.log
+logs/
+*.zip
+
+# -----------------------------
+# FashionAI: do not upload datasets
+# -----------------------------
+FashionAI/datasets/
+FashionAI/models/*.pth
+FashionAI/assets/output/
+FashionAI/assets/result/
+
+# -----------------------------
+# TryOn: keep source, skip generated/heavy files
+# -----------------------------
+TryOn/fashn-vton-1.5/outputs/
+TryOn/fashn-vton-1.5/static/uploads/
+TryOn/fashn-vton-1.5/static/results/
+TryOn/fashn-vton-1.5/debug_outputs/
+TryOn/fashn-vton-1.5/test_outputs/
+TryOn/fashn-vton-1.5/test_outputs_*/
+TryOn/fashn-vton-1.5/weights/
