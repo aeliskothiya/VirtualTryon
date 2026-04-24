@@ -20,6 +20,125 @@ This repo contains minimal inference code to run virtual try-on with the FASHN V
 
 ---
 
+## Complete Setup For This Workspace (Windows + Conda)
+
+If your workspace is organized like this:
+
+- `D:/VirtualTryon/FashionAI`
+- `D:/VirtualTryon/TryOn/fashn-vton-1.5`
+
+use the steps below to set up everything end-to-end.
+
+### 1. Create and activate environment
+
+```powershell
+conda create -n vton python=3.10 -y
+conda activate vton
+python --version
+```
+
+### 2. Install PyTorch (CUDA 12.4)
+
+```powershell
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+```
+
+If you do not use GPU CUDA, install CPU builds instead from PyPI.
+
+### 3. Install FashionAI dependencies
+
+```powershell
+cd D:/VirtualTryon
+pip install -r FashionAI/requirements.txt
+```
+
+### 4. Install TryOn dependencies
+
+```powershell
+cd D:/VirtualTryon
+pip install -r TryOn/fashn-vton-1.5/requirements.txt
+```
+
+### 5. Install local TryOn package
+
+`fashn_vton` is a local package from `src`, so install editable:
+
+```powershell
+cd D:/VirtualTryon/TryOn/fashn-vton-1.5
+pip install -e .
+```
+
+### 6. Download TryOn weights
+
+```powershell
+cd D:/VirtualTryon/TryOn/fashn-vton-1.5
+python scripts/download_weights.py --weights-dir ./weights
+```
+
+### 7. Verify installation
+
+```powershell
+python -c "import torch, cv2, transformers, onnxruntime, fashn_vton; print('OK')"
+```
+
+### 8. Run TryOn web app
+
+```powershell
+cd D:/VirtualTryon/TryOn/fashn-vton-1.5
+python web_app.py
+```
+
+Then open the local URL shown in terminal.
+
+### 9. Run FashionAI recommendation engine
+
+```powershell
+cd D:/VirtualTryon/FashionAI/training
+python compatibility_engine.py
+```
+
+### 10. Important note for new wardrobe images
+
+If you add new wardrobe photos, regenerate embeddings before running recommendations again.
+
+---
+
+## Optional Services (No Docker)
+
+For full web product workflows (auth, jobs, DB), install locally:
+
+1. PostgreSQL (port `5432`)
+2. Redis or Memurai (port `6379`)
+
+Then install backend packages in `vton`:
+
+```powershell
+pip install fastapi uvicorn sqlalchemy alembic psycopg[binary] redis celery python-jose[cryptography] passlib[bcrypt] python-multipart pydantic-settings
+```
+
+---
+
+## Troubleshooting
+
+### `ModuleNotFoundError: No module named 'fashn_vton'`
+
+```powershell
+cd D:/VirtualTryon/TryOn/fashn-vton-1.5
+pip install -e .
+```
+
+### `ModuleNotFoundError: No module named 'torch'`
+
+```powershell
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+```
+
+### Typo error: `pyhton is not recognized`
+
+Use `python`, not `pyhton`.
+
+---
+
 ## Local Installation
 
 We recommend using a virtual environment:
