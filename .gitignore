@@ -24,28 +24,27 @@ logs/
 # -----------------------------
 # FashionAI: do not upload datasets
 # -----------------------------
-FashionAI/datasets/
-<<<<<<< HEAD
-FashionAI/models/*.pth
-=======
-FashionAI/models/
-FashionAI/assets/input/
->>>>>>> c39aff2 (Initial upload: FashionAI + TryOn (datasets and generated files excluded))
-FashionAI/assets/output/
-FashionAI/assets/result/
+Backend/FashionAI/datasets/
+Backend/FashionAI/models/*.pth
+Backend/FashionAI/models/
+Backend/FashionAI/assets/input/
+Backend/FashionAI/assets/output/
+Backend/FashionAI/assets/result/
 
 # -----------------------------
 # TryOn: keep source, skip generated/heavy files
 # -----------------------------
-TryOn/fashn-vton-1.5/outputs/
-TryOn/fashn-vton-1.5/static/uploads/
-TryOn/fashn-vton-1.5/static/results/
-TryOn/fashn-vton-1.5/debug_outputs/
-TryOn/fashn-vton-1.5/test_outputs/
-TryOn/fashn-vton-1.5/test_outputs_*/
-TryOn/fashn-vton-1.5/weights/
-<<<<<<< HEAD
-=======
-TryOn/static/uploads/
-TryOn/static/results/
->>>>>>> c39aff2 (Initial upload: FashionAI + TryOn (datasets and generated files excluded))
+Backend/TryOn/fashn-vton-1.5/outputs/
+Backend/TryOn/fashn-vton-1.5/static/uploads/
+Backend/TryOn/fashn-vton-1.5/static/results/
+Backend/TryOn/fashn-vton-1.5/debug_outputs/
+Backend/TryOn/fashn-vton-1.5/test_outputs/
+Backend/TryOn/fashn-vton-1.5/test_outputs_*<|fim_middle|>
+
+
+Backend/TryOn/static/uploads/
+Backend/TryOn/static/results/
+
+Backend/TryOn/fashn-vton-1.5/weights/
+Backend/TryOn/static/uploads/
+Backend/TryOn/static/results/

@@ -1,8 +1,0 @@
-# FashionAI (training + recommendation)
-numpy
-opencv-python
-matplotlib
-pillow
-torch
-torchvision
-transformers
