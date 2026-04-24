@@ -340,6 +340,16 @@ td {
   gap: 6px;
 }
 
+.status-ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.status-warn {
+  color: var(--error);
+  font-weight: 600;
+}
+
 .preview-panel {
   padding: 12px;
 }

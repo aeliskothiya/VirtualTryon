@@ -1,13 +1,22 @@
 from datetime import datetime
+from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 
 from app.schemas.wardrobe import WardrobeItemOut
 
 
 class RecommendationRequest(BaseModel):
     bottom_item_id: str
-    occasion: str | None = None
+    occasion: Optional[str] = None
+    suggestion_count: int = Field(default=5, ge=1, le=10)
+
+    @validator("occasion")
+    def normalize_occasion(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = value.strip().lower()
+        return cleaned or None
 
 
 class RecommendationCandidate(BaseModel):

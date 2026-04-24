@@ -12,6 +12,7 @@ import {
   loginUser,
   recommendTops,
   registerStepOne,
+  syncWardrobeEmbeddings,
   updatePassword,
   updateProfile,
   uploadProfilePhoto,
@@ -115,6 +116,15 @@ export function AppProvider({ children }) {
     setNotice(message)
   }
 
+  function handleAuthFailureIfNeeded(error) {
+    if (error?.status === 401) {
+      logout()
+      setDashboardState({ loading: false, error: 'Session expired. Please sign in again.' })
+      return true
+    }
+    return false
+  }
+
   function logout() {
     setSession({ token: '', user: null })
     setData(initialData)
@@ -180,6 +190,9 @@ export function AppProvider({ children }) {
       setDashboardState({ loading: false, error: '' })
       setSuccess('Profile completed successfully.')
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -195,6 +208,9 @@ export function AppProvider({ children }) {
       setDashboardState({ loading: false, error: '' })
       setSuccess('Profile updated.')
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -210,6 +226,9 @@ export function AppProvider({ children }) {
       setDashboardState({ loading: false, error: '' })
       setSuccess('Profile photo updated.')
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -224,6 +243,9 @@ export function AppProvider({ children }) {
       setDashboardState({ loading: false, error: '' })
       setSuccess('Password updated.')
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -242,6 +264,45 @@ export function AppProvider({ children }) {
       setDashboardState({ loading: false, error: '' })
       setSuccess(`Added ${payload.type} to your wardrobe.`)
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
+  async function addWardrobeItems(payload) {
+    const files = Array.isArray(payload.files) ? payload.files : []
+    if (files.length === 0) {
+      return []
+    }
+
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      const uploadedItems = []
+
+      for (const file of files) {
+        const item = await uploadWardrobeItem(session.token, {
+          type: payload.type,
+          file,
+        })
+        uploadedItems.push(item)
+      }
+
+      setData((current) => ({
+        ...current,
+        wardrobe: [...uploadedItems.reverse(), ...current.wardrobe],
+      }))
+      setDashboardState({ loading: false, error: '' })
+      setSuccess(`Added ${uploadedItems.length} ${payload.type} item(s) to your wardrobe.`)
+      return uploadedItems
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -260,6 +321,34 @@ export function AppProvider({ children }) {
       setDashboardState({ loading: false, error: '' })
       setSuccess('Wardrobe item removed.')
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
+  async function runWardrobeEmbeddingSync() {
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      const response = await syncWardrobeEmbeddings(session.token)
+      const wardrobe = await getWardrobeItems(session.token)
+      setData((current) => ({
+        ...current,
+        wardrobe,
+      }))
+      setDashboardState({ loading: false, error: '' })
+      setSuccess(
+        `Embedding sync complete: created ${response.created}, existing ${response.existing}, failed ${response.failed}.`,
+      )
+      return response
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -288,6 +377,9 @@ export function AppProvider({ children }) {
       )
       return response
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -315,6 +407,9 @@ export function AppProvider({ children }) {
       setSuccess(`Try-on finished with status: ${response.status}.`)
       return response
     } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
       setDashboardState({ loading: false, error: error.message })
       throw error
     }
@@ -330,7 +425,9 @@ export function AppProvider({ children }) {
     logout,
     notice,
     register: handleRegister,
+    addWardrobeItems,
     removeWardrobeItem,
+    runWardrobeEmbeddingSync,
     runRecommendation,
     runTryOn,
     saveProfile,

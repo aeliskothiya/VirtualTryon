@@ -61,11 +61,13 @@ def startup_event():
         if route.path.startswith("/tryon")
     ]
     logger.info(
-        "Startup config: project_root=%s vton_repo_dir=%s vton_src_dir=%s vton_weights_dir=%s",
+        "Startup config: project_root=%s vton_repo_dir=%s vton_src_dir=%s vton_weights_dir=%s clothing_model=%s user_embeddings_root=%s",
         settings.project_root,
         settings.vton_repo_dir,
         settings.vton_src_dir,
         settings.vton_weights_dir,
+        settings.clothing_model_path,
+        settings.user_wardrobe_embeddings_root,
     )
     logger.info("Registered tryon routes: %s", tryon_routes)
     ensure_media_directories()

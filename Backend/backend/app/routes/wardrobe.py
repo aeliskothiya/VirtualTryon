@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
 from pymongo.database import Database
 
-from app.controllers.wardrobe_controller import delete_wardrobe_item, list_wardrobe_items, upload_wardrobe_item
+from app.controllers.wardrobe_controller import (
+    delete_wardrobe_item,
+    list_wardrobe_items,
+    sync_wardrobe_embeddings,
+    upload_wardrobe_item,
+)
 from app.core.deps import get_current_fully_registered_user
 from app.database.connection import get_db
-from app.schemas import WardrobeItemOut
+from app.schemas import WardrobeEmbeddingSyncOut, WardrobeItemOut
 
 
 router = APIRouter(prefix="/wardrobe", tags=["wardrobe"])
@@ -36,5 +41,13 @@ def delete_wardrobe_item_route(
 ):
     delete_wardrobe_item(item_id, current_user, db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/embeddings/sync", response_model=WardrobeEmbeddingSyncOut)
+def sync_wardrobe_embeddings_route(
+    current_user: dict = Depends(get_current_fully_registered_user),
+    db: Database = Depends(get_db),
+):
+    return sync_wardrobe_embeddings(current_user, db)
 
 __all__ = ["router"]

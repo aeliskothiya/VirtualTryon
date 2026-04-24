@@ -124,6 +124,13 @@ export function deleteWardrobeItem(token, itemId) {
   })
 }
 
+export function syncWardrobeEmbeddings(token) {
+  return request('/wardrobe/embeddings/sync', {
+    method: 'POST',
+    token,
+  })
+}
+
 export function recommendTops(token, payload) {
   return jsonRequest('/recommend', 'POST', payload, token)
 }

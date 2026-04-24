@@ -10,7 +10,7 @@ from app.schemas.recommendation import (
 )
 from app.schemas.tryon import TryOnJobOut
 from app.schemas.user import CoinTransactionOut, PasswordChangeRequest, PricingOut, UserProfile, UserUpdateRequest
-from app.schemas.wardrobe import WardrobeItemOut
+from app.schemas.wardrobe import WardrobeEmbeddingSyncOut, WardrobeItemOut
 
 __all__ = [
     "AdminBootstrapRequest",
@@ -29,5 +29,6 @@ __all__ = [
     "TryOnJobOut",
     "UserProfile",
     "UserUpdateRequest",
+    "WardrobeEmbeddingSyncOut",
     "WardrobeItemOut",
 ]

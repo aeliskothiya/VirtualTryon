@@ -16,13 +16,24 @@ const passwordDefaults = {
 
 const wardrobeDefaults = {
   type: 'top',
-  file: null,
+  files: [],
 }
 
 const recommendationDefaults = {
   bottom_item_id: '',
   occasion: '',
+  suggestion_count: 5,
 }
+
+const occasionOptions = [
+  { value: '', label: 'No occasion filter' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'office', label: 'Office' },
+  { value: 'party', label: 'Party' },
+  { value: 'sport', label: 'Sport' },
+  { value: 'vacation', label: 'Vacation' },
+  { value: 'formal', label: 'Formal' },
+]
 
 const tryOnDefaults = {
   top_item_id: '',
@@ -32,6 +43,7 @@ const tryOnDefaults = {
 export function DashboardScreen() {
   const {
     addWardrobeItem,
+    addWardrobeItems,
     changePassword,
     clearNotice,
     completeProfile,
@@ -40,6 +52,7 @@ export function DashboardScreen() {
     logout,
     notice,
     removeWardrobeItem,
+    runWardrobeEmbeddingSync,
     runRecommendation,
     runTryOn,
     saveProfile,
@@ -65,6 +78,10 @@ export function DashboardScreen() {
   const bottomItems = useMemo(
     () => data.wardrobe.filter((item) => item.type === 'bottom'),
     [data.wardrobe],
+  )
+  const selectedBottomItem = useMemo(
+    () => bottomItems.find((item) => item.id === recommendationForm.bottom_item_id) || null,
+    [bottomItems, recommendationForm.bottom_item_id],
   )
 
   async function handleCompleteProfile(event) {
@@ -100,7 +117,23 @@ export function DashboardScreen() {
 
   async function handleWardrobeSubmit(event) {
     event.preventDefault()
-    await addWardrobeItem(wardrobeForm)
+
+    if (!wardrobeForm.files.length) {
+      return
+    }
+
+    if (wardrobeForm.files.length === 1) {
+      await addWardrobeItem({
+        type: wardrobeForm.type,
+        file: wardrobeForm.files[0],
+      })
+    } else {
+      await addWardrobeItems({
+        type: wardrobeForm.type,
+        files: wardrobeForm.files,
+      })
+    }
+
     setWardrobeForm(wardrobeDefaults)
     event.target.reset()
   }
@@ -110,6 +143,7 @@ export function DashboardScreen() {
     const result = await runRecommendation({
       bottom_item_id: recommendationForm.bottom_item_id,
       occasion: recommendationForm.occasion || null,
+      suggestion_count: Number(recommendationForm.suggestion_count),
     })
     setRecommendationResult(result)
   }
@@ -348,6 +382,14 @@ export function DashboardScreen() {
             <article className="card">
               <h2>Wardrobe</h2>
               <p className="muted">Upload tops and bottoms with the multipart API used by the backend.</p>
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => runWardrobeEmbeddingSync()}
+                disabled={dashboardState.loading}
+              >
+                Sync missing embeddings
+              </button>
               <form className="stack-form" onSubmit={handleWardrobeSubmit}>
                 <label>
                   Item type
@@ -362,15 +404,16 @@ export function DashboardScreen() {
                   </select>
                 </label>
                 <label>
-                  Clothing image
+                  Clothing image(s)
                   <input
                     required
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={(event) =>
                       setWardrobeForm((current) => ({
                         ...current,
-                        file: event.target.files?.[0] ?? null,
+                        files: event.target.files ? Array.from(event.target.files) : [],
                       }))
                     }
                   />
@@ -387,6 +430,12 @@ export function DashboardScreen() {
                     <div>
                       <strong>{item.type}</strong>
                       <p className="muted">{formatDateTime(item.created_at)}</p>
+                      <p className={item.embedding_done ? 'status-ok' : 'status-warn'}>
+                        {item.embedding_done ? 'Embedding ready' : 'Embedding pending'}
+                      </p>
+                      {!item.embedding_done && item.embedding_error ? (
+                        <p className="muted">{item.embedding_error}</p>
+                      ) : null}
                     </div>
                     <button
                       className="danger-button"
@@ -424,10 +473,21 @@ export function DashboardScreen() {
                     ))}
                   </select>
                 </label>
+
+                {selectedBottomItem ? (
+                  <div className="preview-panel">
+                    <img
+                      src={getMediaUrl(selectedBottomItem.image_url)}
+                      alt="Selected bottom for recommendation"
+                    />
+                    <p className="muted">Selected bottom: {selectedBottomItem.id.slice(0, 8)}</p>
+                    <p className="muted">{formatDateTime(selectedBottomItem.created_at)}</p>
+                  </div>
+                ) : null}
+
                 <label>
                   Occasion
-                  <input
-                    placeholder="casual, office, party..."
+                  <select
                     value={recommendationForm.occasion}
                     onChange={(event) =>
                       setRecommendationForm((current) => ({
@@ -435,7 +495,31 @@ export function DashboardScreen() {
                         occasion: event.target.value,
                       }))
                     }
-                  />
+                  >
+                    {occasionOptions.map((option) => (
+                      <option key={option.value || 'none'} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Number of suggestions
+                  <select
+                    value={recommendationForm.suggestion_count}
+                    onChange={(event) =>
+                      setRecommendationForm((current) => ({
+                        ...current,
+                        suggestion_count: Number(event.target.value),
+                      }))
+                    }
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => (
+                      <option key={count} value={count}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <button className="primary-button" type="submit" disabled={dashboardState.loading}>
                   Get recommendations

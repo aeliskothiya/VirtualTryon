@@ -16,6 +16,10 @@ def recommend_tops(payload: RecommendationRequest, current_user: dict, db: Datab
     if bottom_item["type"] != "bottom":
         raise HTTPException(status_code=400, detail="Recommendations require a bottom item")
 
+    top_count = db.wardrobe_items.count_documents({"user_id": str(current_user["_id"]), "type": "top"})
+    if top_count == 0:
+        raise HTTPException(status_code=400, detail="Upload at least one top item before requesting recommendations")
+
     try:
         charge_feature(db, current_user, "recommendation")
     except PermissionError:
@@ -26,6 +30,7 @@ def recommend_tops(payload: RecommendationRequest, current_user: dict, db: Datab
         user_id=str(current_user["_id"]),
         bottom_item=bottom_item,
         occasion=payload.occasion,
+        limit=payload.suggestion_count,
     )
     recommendation = {
         "user_id": str(current_user["_id"]),

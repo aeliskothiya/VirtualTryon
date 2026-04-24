@@ -73,6 +73,38 @@ class Settings:
         self.vton_seed = int(os.getenv("VTON_SEED", "42"))
         self.vton_segmentation_free = _as_bool(os.getenv("VTON_SEGMENTATION_FREE"), default=False)
 
+        fashionai_root_env = _clean(os.getenv("FASHIONAI_ROOT"))
+        fashionai_candidates = [
+            Path(fashionai_root_env) if fashionai_root_env else None,
+            self.project_root / "FashionAI",
+            self.backend_root / "FashionAI",
+        ]
+        self.fashionai_root = _resolve_existing_path([p for p in fashionai_candidates if p is not None]) or (
+            Path(fashionai_root_env) if fashionai_root_env else self.project_root / "FashionAI"
+        )
+
+        clothing_model_env = _clean(os.getenv("CLOTHING_MODEL_PATH"))
+        clothing_model_candidates = [
+            Path(clothing_model_env) if clothing_model_env else None,
+            self.fashionai_root / "models" / "clothing_model.pth",
+        ]
+        self.clothing_model_path = _resolve_existing_path([p for p in clothing_model_candidates if p is not None]) or (
+            Path(clothing_model_env) if clothing_model_env else self.fashionai_root / "models" / "clothing_model.pth"
+        )
+
+        user_embeddings_root_env = _clean(os.getenv("USER_WARDROBE_EMBEDDINGS_ROOT"))
+        user_embeddings_root_candidates = [
+            Path(user_embeddings_root_env) if user_embeddings_root_env else None,
+            self.fashionai_root / "datasets" / "user_wardrobes",
+        ]
+        self.user_wardrobe_embeddings_root = _resolve_existing_path(
+            [p for p in user_embeddings_root_candidates if p is not None]
+        ) or (
+            Path(user_embeddings_root_env)
+            if user_embeddings_root_env
+            else self.fashionai_root / "datasets" / "user_wardrobes"
+        )
+
 
 settings = Settings()
 
