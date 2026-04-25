@@ -85,6 +85,10 @@ export function loginUser(payload) {
   return jsonRequest('/auth/login', 'POST', payload)
 }
 
+export function bootstrapAdminAccount(payload) {
+  return jsonRequest('/admin/bootstrap', 'POST', payload)
+}
+
 export function getMe(token) {
   return request('/me', { token })
 }

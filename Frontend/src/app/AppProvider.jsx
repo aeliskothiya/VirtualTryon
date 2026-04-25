@@ -34,12 +34,31 @@ const initialData = {
   tryons: [],
 }
 
+const initialTryOnWorkspace = {
+  form: {
+    top_item_id: '',
+    override_photo: null,
+  },
+  result: null,
+}
+
+const initialRecommendationWorkspace = {
+  form: {
+    bottom_item_id: '',
+    occasion: '',
+    suggestion_count: 5,
+  },
+  result: null,
+}
+
 export function AppProvider({ children }) {
   const [session, setSession] = useState(() => loadSession())
   const [data, setData] = useState(initialData)
   const [authState, setAuthState] = useState(defaultAsyncState)
   const [dashboardState, setDashboardState] = useState(defaultAsyncState)
   const [notice, setNotice] = useState('')
+  const [tryOnWorkspace, setTryOnWorkspace] = useState(initialTryOnWorkspace)
+  const [recommendationWorkspace, setRecommendationWorkspace] = useState(initialRecommendationWorkspace)
 
   useEffect(() => {
     saveSession(session)
@@ -131,6 +150,8 @@ export function AppProvider({ children }) {
     setAuthState(defaultAsyncState)
     setDashboardState(defaultAsyncState)
     setNotice('')
+    setTryOnWorkspace(initialTryOnWorkspace)
+    setRecommendationWorkspace(initialRecommendationWorkspace)
   }
 
   async function runAuthAction(task, successMessage) {
@@ -371,6 +392,10 @@ export function AppProvider({ children }) {
         recommendations: history,
         transactions,
       }))
+      setRecommendationWorkspace((current) => ({
+        ...current,
+        result: response,
+      }))
       setDashboardState({ loading: false, error: '' })
       setSuccess(
         `Found ${response.results.length} matching tops. Coins left: ${response.coin_balance ?? user?.coin_balance ?? 0}.`,
@@ -402,6 +427,10 @@ export function AppProvider({ children }) {
         ...current,
         tryons: history,
         transactions,
+      }))
+      setTryOnWorkspace((current) => ({
+        ...current,
+        result: response,
       }))
       setDashboardState({ loading: false, error: '' })
       setSuccess(`Try-on finished with status: ${response.status}.`)
@@ -435,6 +464,10 @@ export function AppProvider({ children }) {
     session,
     changePassword,
     addWardrobeItem,
+    tryOnWorkspace,
+    setTryOnWorkspace,
+    recommendationWorkspace,
+    setRecommendationWorkspace,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
