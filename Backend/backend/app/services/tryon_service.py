@@ -45,7 +45,12 @@ def _load_pipeline():
     )
 
 
-def run_tryon(person_image_path: str | Path, garment_image_path: str | Path, output_path: str | Path) -> None:
+def run_tryon(
+    person_image_path: str | Path,
+    garment_image_path: str | Path,
+    output_path: str | Path,
+    garment_photo_type: str | None = None,
+) -> None:
     person_image_path = Path(person_image_path)
     garment_image_path = Path(garment_image_path)
     output_path = Path(output_path)
@@ -71,12 +76,15 @@ def run_tryon(person_image_path: str | Path, garment_image_path: str | Path, out
     pipeline = _load_pipeline()
     person = Image.open(person_image_path).convert("RGB")
     garment = Image.open(garment_image_path).convert("RGB")
+    resolved_garment_photo_type = (garment_photo_type or settings.vton_garment_photo_type).strip().lower()
+    if resolved_garment_photo_type not in {"model", "flat-lay"}:
+        raise RuntimeError("garment_photo_type must be 'model' or 'flat-lay'")
 
     result = pipeline(
         person_image=person,
         garment_image=garment,
         category=settings.vton_category,
-        garment_photo_type=settings.vton_garment_photo_type,
+        garment_photo_type=resolved_garment_photo_type,
         num_timesteps=settings.vton_num_timesteps,
         guidance_scale=settings.vton_guidance_scale,
         seed=settings.vton_seed,

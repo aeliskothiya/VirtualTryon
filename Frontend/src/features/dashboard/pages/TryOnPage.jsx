@@ -9,6 +9,10 @@ export function TryOnPage() {
 
   const topItems = data.wardrobe.filter((item) => item.type === 'top')
   const selectedTopItem = topItems.find((item) => item.id === tryOnWorkspace.form.top_item_id) || null
+  const garmentTypeOptions = [
+    { value: 'flat-lay', label: 'Only cloth / flat-lay' },
+    { value: 'model', label: 'On model' },
+  ]
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -91,6 +95,28 @@ export function TryOnPage() {
                 }
               />
             </InputShell>
+          </FieldLabel>
+
+          <FieldLabel label="Garment type">
+            <select
+              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#c65d2c] focus:ring-4 focus:ring-[#c65d2c]/10"
+              value={tryOnWorkspace.form.garment_photo_type}
+              onChange={(event) =>
+                setTryOnWorkspace((current) => ({
+                  ...current,
+                  form: {
+                    ...current.form,
+                    garment_photo_type: event.target.value,
+                  },
+                }))
+              }
+            >
+              {garmentTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </FieldLabel>
 
           <button className="rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b65126] disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={dashboardState.loading}>

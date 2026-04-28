@@ -19,7 +19,13 @@ from app.utils.helpers import serialize_document, serialize_many, utcnow
 logger = logging.getLogger("uvicorn.error")
 
 
-def create_tryon(top_item_id: str, override_photo: UploadFile | None, current_user: dict, db: Database) -> dict:
+def create_tryon(
+    top_item_id: str,
+    override_photo: UploadFile | None,
+    garment_photo_type: str,
+    current_user: dict,
+    db: Database,
+) -> dict:
     item = get_wardrobe_item_for_user(db, top_item_id, str(current_user["_id"]))
     if item is None:
         raise HTTPException(status_code=404, detail="Wardrobe item not found")
@@ -60,7 +66,7 @@ def create_tryon(top_item_id: str, override_photo: UploadFile | None, current_us
 
     try:
         output_path = create_tryon_output_path(str(current_user["_id"]), str(job["_id"]))
-        run_tryon(input_photo_path, garment_path, output_path)
+        run_tryon(input_photo_path, garment_path, output_path, garment_photo_type=garment_photo_type)
         db.tryon_jobs.update_one(
             {"_id": job["_id"]},
             {"$set": {"output_url": absolute_to_media_url(output_path), "status": "completed"}},

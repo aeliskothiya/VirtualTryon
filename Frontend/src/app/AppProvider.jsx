@@ -47,6 +47,7 @@ const initialTryOnWorkspace = {
   form: {
     top_item_id: '',
     override_photo: null,
+    garment_photo_type: 'flat-lay',
   },
   result: null,
 }

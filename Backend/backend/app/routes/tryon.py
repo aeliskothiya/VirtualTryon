@@ -24,10 +24,11 @@ def tryon_route_help() -> dict:
 async def create_tryon_route(
     top_item_id: str = Form(...),
     override_photo: UploadFile | None = File(default=None),
+    garment_photo_type: str = Form(default="flat-lay"),
     current_user: dict = Depends(get_current_fully_registered_user),
     db: Database = Depends(get_db),
 ):
-    return create_tryon(top_item_id, override_photo, current_user, db)
+    return create_tryon(top_item_id, override_photo, garment_photo_type, current_user, db)
 
 
 @router.get("/history", response_model=list[TryOnJobOut])
