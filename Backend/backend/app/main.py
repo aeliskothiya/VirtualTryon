@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.database.connection import get_db, init_indexes
+from app.database.seed.coin_package_seed import seed_default_coin_packages
 from app.database.seed.pricing_seed import seed_default_pricing
 from app.routes import admin, auth, recommendations, tryon, users, wardrobe
 from app.services.storage_service import ensure_media_directories
@@ -73,6 +74,7 @@ def startup_event():
     ensure_media_directories()
     init_indexes()
     seed_default_pricing(get_db())
+    seed_default_coin_packages(get_db())
 
 
 @app.get("/")

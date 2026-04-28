@@ -3,9 +3,18 @@ const STORAGE_KEY = 'fashion-ai-session'
 export function loadSession() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : { token: '', user: null }
+    if (!raw) {
+      return { kind: 'user', token: '', user: null }
+    }
+
+    const parsed = JSON.parse(raw)
+    return {
+      kind: parsed.kind || 'user',
+      token: parsed.token || '',
+      user: parsed.user || null,
+    }
   } catch {
-    return { token: '', user: null }
+    return { kind: 'user', token: '', user: null }
   }
 }
 

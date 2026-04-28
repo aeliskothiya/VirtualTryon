@@ -34,7 +34,7 @@ def register_step_one(payload: RegisterStepOneRequest, db: Database) -> AuthResp
 
     credit_user(db, user, settings.default_registration_bonus, reason="registration_bonus")
     db_user = get_user(db, str(user["_id"]))
-    token = create_access_token({"email": db_user["email"]})
+    token = create_access_token({"email": db_user["email"], "kind": "user"})
     return AuthResponse(access_token=token, user=serialize_document(db_user))
 
 
@@ -65,7 +65,7 @@ def login(payload: LoginRequest, db: Database) -> AuthResponse:
     if user is None or not verify_password(payload.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token({"email": user["email"]})
+    token = create_access_token({"email": user["email"], "kind": "user"})
     return AuthResponse(access_token=token, user=serialize_document(user))
 
 __all__ = ["login", "register_step_one", "register_step_two"]

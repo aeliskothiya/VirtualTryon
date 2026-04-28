@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useAppContext } from '../../../app/AppContext'
 import { formatDateTime } from '../../../shared/format'
 import { getMediaUrl } from '../../../shared/api/client'
+import { setRouteHash } from '../../../shared/navigation'
 import { FieldLabel } from '../../../shared/ui/Field'
 import { Panel } from '../../../shared/ui/Panel'
 
@@ -16,7 +17,7 @@ const occasionOptions = [
 ]
 
 export function RecommendationsPage() {
-  const { dashboardState, data, runRecommendation, recommendationWorkspace, setRecommendationWorkspace } = useAppContext()
+  const { dashboardState, data, runRecommendation, recommendationWorkspace, setRecommendationWorkspace, setTryOnWorkspace } = useAppContext()
 
   const bottomItems = useMemo(() => data.wardrobe.filter((item) => item.type === 'bottom'), [data.wardrobe])
   const selectedBottomItem = useMemo(
@@ -31,6 +32,17 @@ export function RecommendationsPage() {
       occasion: recommendationWorkspace.form.occasion || null,
       suggestion_count: Number(recommendationWorkspace.form.suggestion_count),
     })
+  }
+
+  function handleTryOn(topItemId) {
+    setTryOnWorkspace((current) => ({
+      ...current,
+      form: {
+        ...current.form,
+        top_item_id: topItemId,
+      },
+    }))
+    setRouteHash('app', 'tryon')
   }
 
   return (
@@ -141,9 +153,18 @@ export function RecommendationsPage() {
             {recommendationWorkspace.result.results.map((item) => (
               <article key={item.top_item_id} className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
                 <img src={getMediaUrl(item.top_item.image_url)} alt="Recommended top" className="aspect-square w-full object-cover" />
-                <div className="space-y-1 p-4">
-                  <p className="text-sm font-semibold text-stone-950">Score {item.score.toFixed(3)}</p>
-                  <p className="text-xs text-stone-500">Top ID: {item.top_item_id}</p>
+                <div className="space-y-3 p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-stone-950">Score {item.score.toFixed(3)}</p>
+                    <p className="text-xs text-stone-500">Top ID: {item.top_item_id}</p>
+                  </div>
+                  <button
+                    className="w-full rounded-2xl bg-[#c65d2c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#b65126]"
+                    type="button"
+                    onClick={() => handleTryOn(item.top_item_id)}
+                  >
+                    Try on this top
+                  </button>
                 </div>
               </article>
             ))}

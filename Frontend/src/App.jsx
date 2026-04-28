@@ -2,44 +2,62 @@ import { useEffect, useState } from 'react'
 import { AppProvider } from './app/AppProvider'
 import { useAppContext } from './app/AppContext'
 import { AuthScreen } from './features/auth/AuthScreen'
+import { AdminAuthScreen } from './features/admin/AdminAuthScreen'
+import { AdminDashboardScreen } from './features/admin/AdminDashboardScreen'
+import { AdminCoinsScreen } from './features/admin/AdminCoinsScreen'
 import { DashboardScreen } from './features/dashboard/DashboardScreen'
 import { getDefaultRoute, getRouteFromHash, setRouteHash } from './shared/navigation'
 
 function AppContent() {
   const { session } = useAppContext()
-  const [route, setRoute] = useState(() => getDefaultRoute(Boolean(session.token)))
+  const [route, setRoute] = useState(() => getDefaultRoute(session))
 
   useEffect(() => {
     function syncRoute() {
-      setRoute(getRouteFromHash(window.location.hash, Boolean(session.token)))
+      setRoute(getRouteFromHash(window.location.hash, session))
     }
 
     syncRoute()
     window.addEventListener('hashchange', syncRoute)
 
     return () => window.removeEventListener('hashchange', syncRoute)
-  }, [session.token])
+  }, [session.kind, session.token])
 
   useEffect(() => {
-    const desiredScope = session.token ? 'app' : 'auth'
-    const desiredPage = session.token ? 'overview' : 'login'
+    const desiredScope = session.kind === 'admin' ? 'admin' : session.token ? 'app' : 'auth'
+    const desiredPage =
+      session.kind === 'admin'
+        ? route.scope === 'admin'
+          ? route.page
+          : 'dashboard'
+        : session.token
+          ? route.scope === 'app'
+            ? route.page
+            : 'overview'
+          : 'login'
 
     if (window.location.hash !== `#${desiredScope}/${desiredPage}`) {
       setRouteHash(desiredScope, desiredPage)
     }
-  }, [session.token])
+  }, [session.kind, session.token])
 
-  const activeRoute = session.token
-    ? route.scope === 'app'
-      ? route
-      : getDefaultRoute(true)
-    : route.scope === 'auth'
-      ? route
-      : getDefaultRoute(false)
+  if (session.kind === 'admin') {
+    if (route.page === 'coins') {
+      return <AdminCoinsScreen page={route.page} onNavigate={(page) => setRouteHash('admin', page)} />
+    }
+
+    return <AdminDashboardScreen page={route.page} onNavigate={(page) => setRouteHash('admin', page)} />
+  }
 
   if (!session.token) {
-    return <AuthScreen mode={activeRoute.page} onModeChange={(mode) => setRouteHash('auth', mode)} />
+    if (route.scope === 'admin') {
+      return <AdminAuthScreen onModeChange={(mode) => setRouteHash('admin', mode)} />
+    }
+
+    return <AuthScreen mode={route.page} onModeChange={(mode) => setRouteHash('auth', mode)} />
   }
+
+  const activeRoute = route.scope === 'app' ? route : getDefaultRoute(session)
 
   return <DashboardScreen page={activeRoute.page} onNavigate={(page) => setRouteHash('app', page)} />
 }

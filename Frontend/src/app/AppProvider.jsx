@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react'
 import {
+  deleteCoinPackage,
+  getAdminOverview,
+  getAdminPricing,
   completeRegistration,
   createTryOnJob,
   deleteWardrobeItem,
   getCoinTransactions,
   getMe,
+  getCoinPackages,
   getPricing,
   getRecommendationHistory,
   getTryOnHistory,
   getWardrobeItems,
+  loginAdmin,
   loginUser,
   recommendTops,
   registerStepOne,
   syncWardrobeEmbeddings,
   updatePassword,
+  updateAdminPricing,
   updateProfile,
+  upsertCoinPackage,
   uploadProfilePhoto,
   uploadWardrobeItem,
 } from '../shared/api/client'
@@ -28,10 +35,12 @@ const defaultAsyncState = {
 
 const initialData = {
   pricing: [],
+  coinPackages: [],
   transactions: [],
   wardrobe: [],
   recommendations: [],
   tryons: [],
+  adminOverview: null,
 }
 
 const initialTryOnWorkspace = {
@@ -67,6 +76,49 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!session.token) {
       return
+    }
+
+    if (session.kind === 'admin') {
+      let active = true
+
+      async function bootstrapAdmin() {
+        setDashboardState({ loading: true, error: '' })
+
+        try {
+          const [overview, pricing, coinPackages] = await Promise.all([
+            getAdminOverview(session.token),
+            getAdminPricing(session.token),
+            getCoinPackages(session.token),
+          ])
+
+          if (!active) {
+            return
+          }
+
+          setData((current) => ({
+            ...current,
+            adminOverview: overview,
+            pricing,
+            coinPackages,
+          }))
+          setDashboardState({ loading: false, error: '' })
+        } catch (error) {
+          if (!active) {
+            return
+          }
+
+          setDashboardState({ loading: false, error: error.message })
+          if (error.status === 401) {
+            logout()
+          }
+        }
+      }
+
+      bootstrapAdmin()
+
+      return () => {
+        active = false
+      }
     }
 
     let active = true
@@ -125,7 +177,7 @@ export function AppProvider({ children }) {
     return () => {
       active = false
     }
-  }, [session.token])
+  }, [session.kind, session.token])
 
   function clearNotice() {
     setNotice('')
@@ -133,6 +185,25 @@ export function AppProvider({ children }) {
 
   function setSuccess(message) {
     setNotice(message)
+  }
+
+  async function refreshAdminWorkspace() {
+    if (session.kind !== 'admin' || !session.token) {
+      return
+    }
+
+    const [overview, pricing, coinPackages] = await Promise.all([
+      getAdminOverview(session.token),
+      getAdminPricing(session.token),
+      getCoinPackages(session.token),
+    ])
+
+    setData((current) => ({
+      ...current,
+      adminOverview: overview,
+      pricing,
+      coinPackages,
+    }))
   }
 
   function handleAuthFailureIfNeeded(error) {
@@ -145,7 +216,7 @@ export function AppProvider({ children }) {
   }
 
   function logout() {
-    setSession({ token: '', user: null })
+    setSession({ kind: 'user', token: '', user: null })
     setData(initialData)
     setAuthState(defaultAsyncState)
     setDashboardState(defaultAsyncState)
@@ -160,7 +231,7 @@ export function AppProvider({ children }) {
 
     try {
       const response = await task()
-      setSession({ token: response.access_token, user: response.user })
+      setSession({ kind: 'user', token: response.access_token, user: response.user })
       setAuthState({ loading: false, error: '' })
       setSuccess(successMessage)
       return response
@@ -179,6 +250,76 @@ export function AppProvider({ children }) {
 
   async function handleLogin(payload) {
     return runAuthAction(() => loginUser(payload), 'Welcome back.')
+  }
+
+  async function handleAdminLogin(payload) {
+    setAuthState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      const response = await loginAdmin(payload)
+      setSession({ kind: 'admin', token: response.access_token, user: response.admin })
+      setAuthState({ loading: false, error: '' })
+      setSuccess('Admin session started.')
+      return response
+    } catch (error) {
+      setAuthState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
+  async function saveAdminPricing(feature, payload) {
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      await updateAdminPricing(session.token, feature, payload)
+      await refreshAdminWorkspace()
+      setDashboardState({ loading: false, error: '' })
+      setSuccess(`${feature} pricing updated.`)
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
+  async function saveCoinPackage(payload) {
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      await upsertCoinPackage(session.token, payload)
+      await refreshAdminWorkspace()
+      setDashboardState({ loading: false, error: '' })
+      setSuccess(`Coin package ${payload.code} saved.`)
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
+  async function removeCoinPackage(code) {
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      await deleteCoinPackage(session.token, code)
+      await refreshAdminWorkspace()
+      setDashboardState({ loading: false, error: '' })
+      setSuccess(`Coin package ${code} removed.`)
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
   }
 
   async function refreshUser() {
@@ -451,6 +592,7 @@ export function AppProvider({ children }) {
     dashboardState,
     data,
     login: handleLogin,
+    loginAdmin: handleAdminLogin,
     logout,
     notice,
     register: handleRegister,
@@ -468,6 +610,12 @@ export function AppProvider({ children }) {
     setTryOnWorkspace,
     recommendationWorkspace,
     setRecommendationWorkspace,
+    adminOverview: data.adminOverview,
+    adminPricing: data.pricing,
+    coinPackages: data.coinPackages,
+    saveAdminPricing,
+    saveCoinPackage,
+    removeCoinPackage,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

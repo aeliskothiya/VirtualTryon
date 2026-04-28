@@ -32,6 +32,7 @@ def init_indexes() -> None:
     mongo_db.users.create_index([("email", ASCENDING)], unique=True)
     mongo_db.admins.create_index([("email", ASCENDING)], unique=True)
     mongo_db.pricing.create_index([("feature", ASCENDING)], unique=True)
+    mongo_db.coin_packages.create_index([("code", ASCENDING)], unique=True)
     mongo_db.coin_transactions.create_index([("user_id", ASCENDING), ("created_at", ASCENDING)])
     mongo_db.wardrobe_items.create_index([("user_id", ASCENDING), ("created_at", ASCENDING)])
     mongo_db.tryon_jobs.create_index([("user_id", ASCENDING), ("created_at", ASCENDING)])

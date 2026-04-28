@@ -1,4 +1,5 @@
 import { useAppContext } from '../../app/AppContext'
+import { setRouteHash } from '../../shared/navigation'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
@@ -113,6 +114,14 @@ export function AuthScreen({ mode = 'login', onModeChange }) {
           {activeMode === 'login' ? <LoginPage /> : null}
           {activeMode === 'register' ? <RegisterPage /> : null}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setRouteHash('admin', 'login')}
+          className="mt-5 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
+        >
+          Admin sign in
+        </button>
       </section>
     </main>
   )

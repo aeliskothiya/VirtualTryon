@@ -85,6 +85,10 @@ export function loginUser(payload) {
   return jsonRequest('/auth/login', 'POST', payload)
 }
 
+export function loginAdmin(payload) {
+  return jsonRequest('/admin/login', 'POST', payload)
+}
+
 export function bootstrapAdminAccount(payload) {
   return jsonRequest('/admin/bootstrap', 'POST', payload)
 }
@@ -149,4 +153,35 @@ export function createTryOnJob(token, payload) {
 
 export function getTryOnHistory(token) {
   return request('/tryon/history', { token })
+}
+
+export function getAdminOverview(token) {
+  return request('/admin/overview', { token })
+}
+
+export function getAdminPricing(token) {
+  return request('/admin/pricing', { token })
+}
+
+export function updateAdminPricing(token, feature, payload) {
+  return jsonRequest(`/admin/pricing/${feature}`, 'PATCH', payload, token)
+}
+
+export function getCoinPackages(token) {
+  return request('/admin/packages', { token })
+}
+
+export function upsertCoinPackage(token, payload) {
+  return jsonRequest('/admin/packages', 'POST', payload, token)
+}
+
+export function updateCoinPackage(token, code, payload) {
+  return jsonRequest(`/admin/packages/${code}`, 'PATCH', payload, token)
+}
+
+export function deleteCoinPackage(token, code) {
+  return request(`/admin/packages/${code}`, {
+    method: 'DELETE',
+    token,
+  })
 }

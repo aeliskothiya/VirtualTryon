@@ -5,6 +5,7 @@ from app.schemas.user import UserProfile
 
 class TokenData(BaseModel):
     email: str | None = None
+    kind: str | None = None
 
 
 class RegisterStepOneRequest(BaseModel):
