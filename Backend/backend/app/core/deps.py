@@ -60,9 +60,10 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Database = Depend
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("email")
-        if email is None or payload.get("kind") != "admin":
+        token_kind = payload.get("kind")
+        if email is None or token_kind not in (None, "admin"):
             raise credentials_exception
-        token_data = TokenData(email=email, kind=payload.get("kind"))
+        token_data = TokenData(email=email, kind=token_kind)
     except JWTError as exc:
         raise credentials_exception from exc
 

@@ -80,6 +80,7 @@ def upsert_coin_package(payload: CoinPackageUpsertRequest, db: Database) -> dict
         "description": payload.description.strip() if payload.description else None,
         "bonus_coins": payload.bonus_coins,
         "is_active": payload.is_active,
+        "status": "active" if payload.is_active else "inactive",
         "updated_at": utcnow(),
     }
     existing = db.coin_packages.find_one({"code": code})
@@ -95,10 +96,13 @@ def upsert_coin_package(payload: CoinPackageUpsertRequest, db: Database) -> dict
 
 
 def delete_coin_package(code: str, db: Database) -> dict:
-    deleted = db.coin_packages.find_one_and_delete({"code": code.strip().lower()})
-    if deleted is None:
+    updated = db.coin_packages.find_one_and_update(
+        {"code": code.strip().lower()},
+        {"$set": {"status": "inactive", "is_active": False, "updated_at": utcnow()}},
+    )
+    if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coin package not found")
-    return {"message": "Coin package deleted"}
+    return {"message": "Coin package deactivated"}
 
 __all__ = [
     "bootstrap_admin",

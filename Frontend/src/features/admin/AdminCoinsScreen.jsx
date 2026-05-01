@@ -24,7 +24,6 @@ export function AdminCoinsScreen({ onNavigate }) {
     coinPackages,
     dashboardState,
     logout,
-    removeCoinPackage,
     saveAdminPricing,
     saveCoinPackage,
     session,
@@ -64,6 +63,18 @@ export function AdminCoinsScreen({ onNavigate }) {
       description: item.description || '',
       bonus_coins: item.bonus_coins || 0,
       is_active: Boolean(item.is_active),
+    })
+  }
+
+  async function togglePackageStatus(item) {
+    await saveCoinPackage({
+      code: item.code,
+      title: item.title,
+      coin_amount: item.coin_amount,
+      price_label: item.price_label,
+      description: item.description || '',
+      bonus_coins: item.bonus_coins || 0,
+      is_active: !item.is_active,
     })
   }
 
@@ -272,7 +283,12 @@ export function AdminCoinsScreen({ onNavigate }) {
 
             <div className="mt-5 space-y-3">
               {coinPackages.map((item) => (
-                <article key={item.id} className="rounded-3xl border border-stone-200 bg-white p-4 shadow-sm">
+                <article
+                  key={item.id}
+                  className={`rounded-3xl border p-4 shadow-sm transition ${
+                    item.is_active ? 'border-stone-200 bg-white' : 'border-stone-200 bg-stone-100/80 opacity-75'
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-semibold text-stone-950">{item.title}</p>
@@ -285,18 +301,24 @@ export function AdminCoinsScreen({ onNavigate }) {
                     </div>
                     <div className="flex flex-col gap-2">
                       <button
-                        className="rounded-2xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
+                        className="rounded-2xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
                         type="button"
+                        disabled={dashboardState.loading || !item.is_active}
                         onClick={() => editPackage(item)}
                       >
                         Edit
                       </button>
                       <button
-                        className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                        className={`rounded-2xl px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          item.is_active
+                            ? 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                        }`}
                         type="button"
-                        onClick={() => removeCoinPackage(item.code)}
+                        disabled={dashboardState.loading}
+                        onClick={() => togglePackageStatus(item)}
                       >
-                        Delete
+                        {item.is_active ? 'Deactivate' : 'Activate'}
                       </button>
                     </div>
                   </div>

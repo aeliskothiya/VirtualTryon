@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { AppProvider } from './app/AppProvider'
 import { useAppContext } from './app/AppContext'
 import { AuthScreen } from './features/auth/AuthScreen'
-import { AdminAuthScreen } from './features/admin/AdminAuthScreen'
 import { AdminDashboardScreen } from './features/admin/AdminDashboardScreen'
 import { AdminCoinsScreen } from './features/admin/AdminCoinsScreen'
 import { DashboardScreen } from './features/dashboard/DashboardScreen'
@@ -50,11 +49,8 @@ function AppContent() {
   }
 
   if (!session.token) {
-    if (route.scope === 'admin') {
-      return <AdminAuthScreen onModeChange={(mode) => setRouteHash('admin', mode)} />
-    }
-
-    return <AuthScreen mode={route.page} onModeChange={(mode) => setRouteHash('auth', mode)} />
+    const authMode = route.scope === 'auth' && route.page === 'register' ? 'register' : 'login'
+    return <AuthScreen mode={authMode} onModeChange={(mode) => setRouteHash('auth', mode)} />
   }
 
   const activeRoute = route.scope === 'app' ? route : getDefaultRoute(session)

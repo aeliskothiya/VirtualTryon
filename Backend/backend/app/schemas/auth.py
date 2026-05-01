@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.admin import AdminOut
 from app.schemas.user import UserProfile
 
 
@@ -23,6 +24,8 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: UserProfile
+    kind: str = "user"
+    user: UserProfile | None = None
+    admin: AdminOut | None = None
 
 __all__ = ["AuthResponse", "LoginRequest", "RegisterStepOneRequest", "TokenData"]

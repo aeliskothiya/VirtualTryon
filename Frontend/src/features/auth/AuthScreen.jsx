@@ -1,5 +1,4 @@
 import { useAppContext } from '../../app/AppContext'
-import { setRouteHash } from '../../shared/navigation'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
@@ -7,7 +6,7 @@ const modeDetails = {
   login: {
     title: 'Sign in',
     eyebrow: 'Welcome back',
-    copy: 'Resume your wardrobe workspace and continue styling from your saved session.',
+    copy: 'Sign in with your email and password. We automatically route admin accounts to admin workspace and users to their dashboard.',
     button: 'Sign in',
   },
   register: {
@@ -115,13 +114,6 @@ export function AuthScreen({ mode = 'login', onModeChange }) {
           {activeMode === 'register' ? <RegisterPage /> : null}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setRouteHash('admin', 'login')}
-          className="mt-5 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50"
-        >
-          Admin sign in
-        </button>
       </section>
     </main>
   )

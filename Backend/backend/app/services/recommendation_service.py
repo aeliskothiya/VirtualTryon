@@ -181,6 +181,7 @@ def rank_tops_for_bottom(
             {
                 "user_id": user_id,
                 "type": "top",
+                "status": {"$ne": "inactive"},
                 "_id": {"$ne": bottom_item["_id"]},
             }
         ).sort("created_at", -1)

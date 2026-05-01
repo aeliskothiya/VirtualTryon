@@ -13,7 +13,6 @@ import {
   getRecommendationHistory,
   getTryOnHistory,
   getWardrobeItems,
-  loginAdmin,
   loginUser,
   recommendTops,
   registerStepOne,
@@ -184,6 +183,12 @@ export function AppProvider({ children }) {
     setNotice('')
   }
 
+  function applySessionFromAuthResponse(response) {
+    const kind = response?.kind === 'admin' ? 'admin' : 'user'
+    const principal = kind === 'admin' ? response?.admin : response?.user
+    setSession({ kind, token: response.access_token, user: principal || null })
+  }
+
   function setSuccess(message) {
     setNotice(message)
   }
@@ -232,9 +237,11 @@ export function AppProvider({ children }) {
 
     try {
       const response = await task()
-      setSession({ kind: 'user', token: response.access_token, user: response.user })
+      applySessionFromAuthResponse(response)
       setAuthState({ loading: false, error: '' })
-      setSuccess(successMessage)
+      const resolvedSuccessMessage =
+        typeof successMessage === 'function' ? successMessage(response) : successMessage
+      setSuccess(resolvedSuccessMessage)
       return response
     } catch (error) {
       setAuthState({ loading: false, error: error.message })
@@ -250,23 +257,13 @@ export function AppProvider({ children }) {
   }
 
   async function handleLogin(payload) {
-    return runAuthAction(() => loginUser(payload), 'Welcome back.')
+    return runAuthAction(() => loginUser(payload), (response) =>
+      response?.kind === 'admin' ? 'Admin session started.' : 'Welcome back.',
+    )
   }
 
   async function handleAdminLogin(payload) {
-    setAuthState({ loading: true, error: '' })
-    clearNotice()
-
-    try {
-      const response = await loginAdmin(payload)
-      setSession({ kind: 'admin', token: response.access_token, user: response.admin })
-      setAuthState({ loading: false, error: '' })
-      setSuccess('Admin session started.')
-      return response
-    } catch (error) {
-      setAuthState({ loading: false, error: error.message })
-      throw error
-    }
+    return handleLogin(payload)
   }
 
   async function saveAdminPricing(feature, payload) {

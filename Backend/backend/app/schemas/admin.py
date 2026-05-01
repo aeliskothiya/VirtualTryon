@@ -67,6 +67,7 @@ class CoinPackageOut(BaseModel):
     description: str | None = None
     bonus_coins: int = 0
     is_active: bool = True
+    status: str = "active"
     created_at: datetime
     updated_at: datetime
 

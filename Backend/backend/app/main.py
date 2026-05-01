@@ -84,3 +84,4 @@ def root():
         "database": "mongodb",
         "features": ["auth", "admin", "profile", "coins", "wardrobe", "tryon", "recommendations"],
     }
+    

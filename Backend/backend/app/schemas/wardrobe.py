@@ -8,6 +8,7 @@ class WardrobeItemOut(BaseModel):
     id: str
     user_id: str
     type: str
+    status: str = "active"
     image_url: str
     occasion: Optional[str] = None
     embedding_done: bool

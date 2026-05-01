@@ -7,13 +7,10 @@ from app.database.repositories.wardrobe_repository import get_wardrobe_item_for_
 from app.services.wardrobe_embedding_service import (
     embed_new_wardrobe_item,
     get_or_create_item_embedding,
-    remove_wardrobe_embedding,
 )
 from app.services.storage_service import (
     absolute_to_media_url,
     create_wardrobe_item_path,
-    delete_file_if_exists,
-    media_url_to_absolute,
     save_upload_file,
 )
 from app.utils.helpers import serialize_document, serialize_many, utcnow
@@ -32,6 +29,7 @@ def upload_wardrobe_item(type: str, file: UploadFile, current_user: dict, db: Da
     item = {
         "user_id": str(current_user["_id"]),
         "type": type,
+        "status": "active",
         "occasion": None,
         "image_url": absolute_to_media_url(destination),
         "embedding_done": False,
@@ -84,9 +82,17 @@ def delete_wardrobe_item(item_id: str, current_user: dict, db: Database) -> None
     if item is None:
         raise HTTPException(status_code=404, detail="Wardrobe item not found")
 
-    remove_wardrobe_embedding(str(current_user["_id"]), str(item["_id"]))
-    delete_file_if_exists(media_url_to_absolute(item.get("image_url")))
-    db.wardrobe_items.delete_one({"_id": item["_id"]})
+    db.wardrobe_items.update_one(
+        {"_id": item["_id"]},
+        {
+            "$set": {
+                "status": "inactive",
+                "embedding_done": False,
+                "embedding_error": None,
+                "embedding_updated_at": utcnow(),
+            }
+        },
+    )
 
 
 def sync_wardrobe_embeddings(current_user: dict, db: Database) -> dict:

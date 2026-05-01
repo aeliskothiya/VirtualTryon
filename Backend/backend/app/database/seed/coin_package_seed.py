@@ -13,6 +13,7 @@ def seed_default_coin_packages(db: Database) -> None:
             "description": "Good for a few try-ons and recommendations.",
             "bonus_coins": 10,
             "is_active": True,
+            "status": "active",
         },
         {
             "code": "popular",
@@ -22,6 +23,7 @@ def seed_default_coin_packages(db: Database) -> None:
             "description": "Balanced pack for regular styling sessions.",
             "bonus_coins": 40,
             "is_active": True,
+            "status": "active",
         },
         {
             "code": "premium",
@@ -31,6 +33,7 @@ def seed_default_coin_packages(db: Database) -> None:
             "description": "Best value for heavy try-on and recommendation usage.",
             "bonus_coins": 120,
             "is_active": True,
+            "status": "active",
         },
     ]
 
