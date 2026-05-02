@@ -1,11 +1,16 @@
+import { useState } from 'react'
 import { useAppContext } from '../../../app/AppContext'
 import { formatDateTime } from '../../../shared/format'
 import { getMediaUrl } from '../../../shared/api/client'
+import { setRouteHash } from '../../../shared/navigation'
 import { FieldLabel, InputShell } from '../../../shared/ui/Field'
 import { Panel } from '../../../shared/ui/Panel'
 
 export function TryOnPage() {
-  const { dashboardState, data, runTryOn, tryOnWorkspace, setTryOnWorkspace } = useAppContext()
+  const { dashboardState, data, runTryOn, tryOnWorkspace, setTryOnWorkspace, session } = useAppContext()
+  const isSubscriptionExpired = session.user?.is_subscription_expired
+  const planCode = session.user?.subscription_plan || 'free'
+  const [showExpiryModal, setShowExpiryModal] = useState(false)
 
   const topItems = data.wardrobe.filter((item) => item.type === 'top')
   const selectedTopItem = topItems.find((item) => item.id === tryOnWorkspace.form.top_item_id) || null
@@ -16,6 +21,12 @@ export function TryOnPage() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    const remainingTryons = session.user?.remaining_tryons_today
+    if (remainingTryons <= 0) {
+      setShowExpiryModal(true)
+      return
+    }
+
     await runTryOn(tryOnWorkspace.form)
     setTryOnWorkspace((current) => ({
       ...current,
@@ -119,11 +130,49 @@ export function TryOnPage() {
             </select>
           </FieldLabel>
 
-          <button className="rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b65126] disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={dashboardState.loading}>
+          <button
+            className="rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b65126] disabled:cursor-not-allowed disabled:opacity-60"
+            type="submit"
+            disabled={dashboardState.loading}
+          >
             Run try-on
           </button>
+          {isSubscriptionExpired ? (
+            <p className="text-sm text-amber-700">Your subscription expired. Tap to renew and continue.</p>
+          ) : null}
         </form>
       </Panel>
+
+      {showExpiryModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-[32px] bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-semibold text-stone-950">Upgrade required</h3>
+            <p className="mt-3 text-sm leading-6 text-stone-600">
+              {isSubscriptionExpired
+                ? "Your plan has expired. Renew a subscription to continue using virtual try-on."
+                : planCode === 'free'
+                ? "You've used your free credits. Upgrade to a paid plan to continue using virtual try-on."
+                : "You've reached your daily limit. Try again tomorrow or upgrade for higher limits."}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="inline-flex min-w-[150px] items-center justify-center rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b65126]"
+                onClick={() => setRouteHash('app', 'activity')}
+              >
+                Go to plans
+              </button>
+              <button
+                type="button"
+                className="inline-flex min-w-[150px] items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+                onClick={() => setShowExpiryModal(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Panel>
         <div className="mb-6">

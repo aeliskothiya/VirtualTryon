@@ -1,5 +1,5 @@
-const AUTH_MODES = new Set(['login', 'register'])
-const ADMIN_MODES = new Set(['login', 'dashboard', 'coins'])
+const AUTH_MODES = new Set(['login', 'register', 'forgot-password'])
+const ADMIN_MODES = new Set(['login', 'dashboard', 'plans'])
 const APP_PAGES = new Set(['overview', 'profile', 'wardrobe', 'recommendations', 'tryon', 'activity'])
 
 function normalizeScope(scope) {
@@ -21,6 +21,10 @@ function normalizePage(scope, page) {
 
   if (scope === 'admin' && ADMIN_MODES.has(page)) {
     return page
+  }
+
+  if (scope === 'admin' && page === 'coins') {
+    return 'plans'
   }
 
   if (scope === 'admin') {

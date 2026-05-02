@@ -1,29 +1,29 @@
 import { useEffect, useState } from 'react'
 import {
-  deleteCoinPackage,
   getAdminOverview,
-  getAdminPricing,
   completeRegistration,
   createTryOnJob,
+  createRazorpayPlanOrder,
   deleteWardrobeItem,
-  getCoinTransactions,
   getMe,
-  getCoinPackages,
-  getPricing,
   getRecommendationHistory,
   getTryOnHistory,
+  getSubscriptionPlans,
+  getAdminPlans,
   getWardrobeItems,
   loginUser,
   recommendTops,
   registerStepOne,
+  purchaseSubscriptionPlan,
   syncWardrobeEmbeddings,
   updatePassword,
-  updateAdminPricing,
   updateProfile,
-  upsertCoinPackage,
   uploadProfilePhoto,
   uploadWardrobeItem,
+  updateWardrobeItemStatus as patchWardrobeItemStatus,
+  verifyRazorpayPlanPayment,
 } from '../shared/api/client'
+import { openRazorpayCheckout } from '../shared/payments/razorpay'
 import { loadSession, saveSession } from '../shared/session'
 import { AppContext } from './AppContext'
 
@@ -33,9 +33,7 @@ const defaultAsyncState = {
 }
 
 const initialData = {
-  pricing: [],
-  coinPackages: [],
-  transactions: [],
+  subscriptionPlans: [],
   wardrobe: [],
   recommendations: [],
   tryons: [],
@@ -85,11 +83,10 @@ export function AppProvider({ children }) {
         setDashboardState({ loading: true, error: '' })
 
         try {
-          const [overview, pricing, coinPackages] = await Promise.all([
-            getAdminOverview(session.token),
-            getAdminPricing(session.token),
-            getCoinPackages(session.token),
-          ])
+            const [overview, subscriptionPlans] = await Promise.all([
+              getAdminOverview(session.token),
+              getAdminPlans(session.token),
+            ])
 
           if (!active) {
             return
@@ -98,8 +95,7 @@ export function AppProvider({ children }) {
           setData((current) => ({
             ...current,
             adminOverview: overview,
-            pricing,
-            coinPackages,
+            subscriptionPlans,
           }))
           setDashboardState({ loading: false, error: '' })
         } catch (error) {
@@ -140,9 +136,8 @@ export function AppProvider({ children }) {
           return
         }
 
-        const [pricing, transactions, wardrobe, recommendations, tryons] = await Promise.all([
-          getPricing(session.token),
-          getCoinTransactions(session.token),
+        const [subscriptionPlans, wardrobe, recommendations, tryons] = await Promise.all([
+          getSubscriptionPlans(session.token),
           getWardrobeItems(session.token),
           getRecommendationHistory(session.token),
           getTryOnHistory(session.token),
@@ -153,11 +148,11 @@ export function AppProvider({ children }) {
         }
 
         setData({
-          pricing,
-          transactions,
+          subscriptionPlans,
           wardrobe,
           recommendations,
           tryons,
+          adminOverview: null,
         })
         setDashboardState({ loading: false, error: '' })
       } catch (error) {
@@ -198,17 +193,15 @@ export function AppProvider({ children }) {
       return
     }
 
-    const [overview, pricing, coinPackages] = await Promise.all([
+    const [overview, subscriptionPlans] = await Promise.all([
       getAdminOverview(session.token),
-      getAdminPricing(session.token),
-      getCoinPackages(session.token),
+      getSubscriptionPlans(session.token),
     ])
 
     setData((current) => ({
       ...current,
       adminOverview: overview,
-      pricing,
-      coinPackages,
+      subscriptionPlans,
     }))
   }
 
@@ -266,60 +259,6 @@ export function AppProvider({ children }) {
     return handleLogin(payload)
   }
 
-  async function saveAdminPricing(feature, payload) {
-    setDashboardState({ loading: true, error: '' })
-    clearNotice()
-
-    try {
-      await updateAdminPricing(session.token, feature, payload)
-      await refreshAdminWorkspace()
-      setDashboardState({ loading: false, error: '' })
-      setSuccess(`${feature} pricing updated.`)
-    } catch (error) {
-      if (handleAuthFailureIfNeeded(error)) {
-        throw error
-      }
-      setDashboardState({ loading: false, error: error.message })
-      throw error
-    }
-  }
-
-  async function saveCoinPackage(payload) {
-    setDashboardState({ loading: true, error: '' })
-    clearNotice()
-
-    try {
-      await upsertCoinPackage(session.token, payload)
-      await refreshAdminWorkspace()
-      setDashboardState({ loading: false, error: '' })
-      setSuccess(`Coin package ${payload.code} saved.`)
-    } catch (error) {
-      if (handleAuthFailureIfNeeded(error)) {
-        throw error
-      }
-      setDashboardState({ loading: false, error: error.message })
-      throw error
-    }
-  }
-
-  async function removeCoinPackage(code) {
-    setDashboardState({ loading: true, error: '' })
-    clearNotice()
-
-    try {
-      await deleteCoinPackage(session.token, code)
-      await refreshAdminWorkspace()
-      setDashboardState({ loading: false, error: '' })
-      setSuccess(`Coin package ${code} removed.`)
-    } catch (error) {
-      if (handleAuthFailureIfNeeded(error)) {
-        throw error
-      }
-      setDashboardState({ loading: false, error: error.message })
-      throw error
-    }
-  }
-
   async function refreshUser() {
     if (!session.token) {
       return null
@@ -330,6 +269,83 @@ export function AppProvider({ children }) {
     return user
   }
 
+  async function purchasePlan(planCode) {
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      const targetPlan = data.subscriptionPlans.find((item) => item.code === planCode)
+
+      if (!targetPlan) {
+        throw new Error('Subscription plan not found.')
+      }
+
+      if (Number(targetPlan.price_inr ?? 0) <= 0) {
+        const user = await purchaseSubscriptionPlan(session.token, planCode)
+        setSession((current) => ({ ...current, user }))
+        const subscriptionPlans = await getSubscriptionPlans(session.token)
+        setData((current) => ({
+          ...current,
+          subscriptionPlans,
+        }))
+        setSuccess(`Your subscription was updated to ${user.subscription_plan}.`)
+        setDashboardState({ loading: false, error: '' })
+        return user
+      }
+
+      const order = await createRazorpayPlanOrder(session.token, { plan_code: planCode })
+      const user = await openRazorpayCheckout({
+        key: order.key_id,
+        amount: order.amount_paise,
+        currency: order.currency,
+        name: order.merchant_name,
+        description: `${order.description} - ${order.plan_name}`,
+        orderId: order.order_id,
+        prefill: {
+          name: order.customer_name || session.user?.name || '',
+          email: order.customer_email || session.user?.email || '',
+        },
+        notes: {
+          plan_code: order.plan_code,
+        },
+        theme: {
+          color: '#c65d2c',
+        },
+        onSuccess: async (response) => {
+          const verifiedUser = await verifyRazorpayPlanPayment(session.token, {
+            plan_code: planCode,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          })
+
+          setSession((current) => ({ ...current, user: verifiedUser }))
+
+          const subscriptionPlans = await getSubscriptionPlans(session.token)
+          setData((current) => ({
+            ...current,
+            subscriptionPlans,
+          }))
+
+          setSuccess(`Your subscription was activated with Razorpay for ${verifiedUser.subscription_plan}.`)
+          return verifiedUser
+        },
+      })
+
+      setDashboardState({ loading: false, error: '' })
+      if (user) {
+        setSession((current) => ({ ...current, user }))
+      }
+      return user
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
   async function completeProfile(payload) {
     setDashboardState({ loading: true, error: '' })
     clearNotice()
@@ -338,15 +354,14 @@ export function AppProvider({ children }) {
       const user = await completeRegistration(session.token, payload)
       setSession((current) => ({ ...current, user }))
 
-      const [pricing, transactions, wardrobe, recommendations, tryons] = await Promise.all([
-        getPricing(session.token),
-        getCoinTransactions(session.token),
+      const [subscriptionPlans, wardrobe, recommendations, tryons] = await Promise.all([
+        getSubscriptionPlans(session.token),
         getWardrobeItems(session.token),
         getRecommendationHistory(session.token),
         getTryOnHistory(session.token),
       ])
 
-      setData({ pricing, transactions, wardrobe, recommendations, tryons })
+      setData({ subscriptionPlans, wardrobe, recommendations, tryons, adminOverview: null })
       setDashboardState({ loading: false, error: '' })
       setSuccess('Profile completed successfully.')
     } catch (error) {
@@ -489,6 +504,35 @@ export function AppProvider({ children }) {
     }
   }
 
+  async function updateWardrobeItemStatus(itemId, status) {
+    setDashboardState({ loading: true, error: '' })
+    clearNotice()
+
+    try {
+      const updatedItem = await patchWardrobeItemStatus(session.token, itemId, status)
+      setData((current) => ({
+        ...current,
+        wardrobe:
+          status === 'active'
+            ? [updatedItem, ...current.wardrobe.filter((item) => item.id !== itemId)]
+            : current.wardrobe.filter((item) => item.id !== itemId),
+      }))
+      setDashboardState({ loading: false, error: '' })
+      setSuccess(
+        status === 'active'
+          ? 'Wardrobe item reactivated.'
+          : 'Wardrobe item deactivated and removed from active wardrobe.',
+      )
+      return updatedItem
+    } catch (error) {
+      if (handleAuthFailureIfNeeded(error)) {
+        throw error
+      }
+      setDashboardState({ loading: false, error: error.message })
+      throw error
+    }
+  }
+
   async function runWardrobeEmbeddingSync() {
     setDashboardState({ loading: true, error: '' })
     clearNotice()
@@ -520,25 +564,23 @@ export function AppProvider({ children }) {
 
     try {
       const response = await recommendTops(session.token, payload)
-      const [history, transactions, user] = await Promise.all([
-        getRecommendationHistory(session.token),
-        getCoinTransactions(session.token),
-        refreshUser(),
-      ])
+      const history = await getRecommendationHistory(session.token)
+      await refreshUser()
 
       setData((current) => ({
         ...current,
         recommendations: history,
-        transactions,
       }))
       setRecommendationWorkspace((current) => ({
         ...current,
         result: response,
       }))
       setDashboardState({ loading: false, error: '' })
-      setSuccess(
-        `Found ${response.results.length} matching tops. Coins left: ${response.coin_balance ?? user?.coin_balance ?? 0}.`,
-      )
+      const remainingText =
+        response.remaining_recommendations_today === null || response.remaining_recommendations_today === undefined
+          ? 'Unlimited recommendations remain today.'
+          : `${response.remaining_recommendations_today} recommendation(s) left today.`
+      setSuccess(`Found ${response.results.length} matching tops. ${remainingText}`)
       return response
     } catch (error) {
       if (handleAuthFailureIfNeeded(error)) {
@@ -555,24 +597,20 @@ export function AppProvider({ children }) {
 
     try {
       const response = await createTryOnJob(session.token, payload)
-      const [history, transactions] = await Promise.all([
-        getTryOnHistory(session.token),
-        getCoinTransactions(session.token),
-      ])
+      const history = await getTryOnHistory(session.token)
 
       await refreshUser()
 
       setData((current) => ({
         ...current,
         tryons: history,
-        transactions,
       }))
       setTryOnWorkspace((current) => ({
         ...current,
         result: response,
       }))
       setDashboardState({ loading: false, error: '' })
-      setSuccess(`Try-on finished with status: ${response.status}.`)
+      setSuccess(response.is_saved ? 'Try-on finished and saved to history.' : 'Try-on finished as a preview only.')
       return response
     } catch (error) {
       if (handleAuthFailureIfNeeded(error)) {
@@ -596,9 +634,11 @@ export function AppProvider({ children }) {
     register: handleRegister,
     addWardrobeItems,
     removeWardrobeItem,
+    updateWardrobeItemStatus,
     runWardrobeEmbeddingSync,
     runRecommendation,
     runTryOn,
+    purchasePlan,
     saveProfile,
     saveProfilePhoto,
     session,
@@ -609,11 +649,7 @@ export function AppProvider({ children }) {
     recommendationWorkspace,
     setRecommendationWorkspace,
     adminOverview: data.adminOverview,
-    adminPricing: data.pricing,
-    coinPackages: data.coinPackages,
-    saveAdminPricing,
-    saveCoinPackage,
-    removeCoinPackage,
+    subscriptionPlans: data.subscriptionPlans,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

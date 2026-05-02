@@ -3,13 +3,11 @@ from pymongo.database import Database
 
 from app.controllers.admin_controller import (
     bootstrap_admin,
-    delete_coin_package,
     get_admin_overview,
-    list_admin_pricing,
-    list_coin_packages,
     login_admin,
-    update_admin_pricing,
-    upsert_coin_package,
+    list_admin_plans,
+    create_admin_plan,
+    update_admin_plan,
 )
 from app.core.deps import get_current_admin
 from app.database.connection import get_db
@@ -19,10 +17,8 @@ from app.schemas import (
     AdminLoginRequest,
     AdminOut,
     AdminOverviewOut,
-    CoinPackageOut,
-    CoinPackageUpsertRequest,
-    PricingOut,
-    PricingUpdateRequest,
+    SubscriptionPlanCreate,
+    SubscriptionPlanUpdate,
 )
 
 
@@ -44,49 +40,18 @@ def admin_overview_route(current_admin: dict = Depends(get_current_admin), db: D
     return get_admin_overview(db)
 
 
-@router.get("/pricing", response_model=list[PricingOut])
-def admin_pricing_route(current_admin: dict = Depends(get_current_admin), db: Database = Depends(get_db)):
-    return list_admin_pricing(db)
+@router.get("/plans", response_model=list[dict])
+def admin_list_plans_route(current_admin: dict = Depends(get_current_admin), db: Database = Depends(get_db)):
+    return list_admin_plans(db)
 
 
-@router.patch("/pricing/{feature}", response_model=PricingOut)
-def update_admin_pricing_route(
-    feature: str,
-    payload: PricingUpdateRequest,
-    current_admin: dict = Depends(get_current_admin),
-    db: Database = Depends(get_db),
-):
-    return update_admin_pricing(feature, payload, db)
+@router.post("/plans", response_model=dict, status_code=status.HTTP_201_CREATED)
+def admin_create_plan_route(payload: SubscriptionPlanCreate, current_admin: dict = Depends(get_current_admin), db: Database = Depends(get_db)):
+    return create_admin_plan(payload, db)
 
 
-@router.get("/packages", response_model=list[CoinPackageOut])
-def list_coin_packages_route(current_admin: dict = Depends(get_current_admin), db: Database = Depends(get_db)):
-    return list_coin_packages(db)
-
-
-@router.post("/packages", response_model=CoinPackageOut, status_code=status.HTTP_201_CREATED)
-def upsert_coin_package_route(
-    payload: CoinPackageUpsertRequest,
-    current_admin: dict = Depends(get_current_admin),
-    db: Database = Depends(get_db),
-):
-    return upsert_coin_package(payload, db)
-
-
-@router.patch("/packages/{code}", response_model=CoinPackageOut)
-def update_coin_package_route(
-    code: str,
-    payload: CoinPackageUpsertRequest,
-    current_admin: dict = Depends(get_current_admin),
-    db: Database = Depends(get_db),
-):
-    if code.strip().lower() != payload.code.strip().lower():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Package code cannot be changed")
-    return upsert_coin_package(payload, db)
-
-
-@router.delete("/packages/{code}")
-def delete_coin_package_route(code: str, current_admin: dict = Depends(get_current_admin), db: Database = Depends(get_db)):
-    return delete_coin_package(code, db)
+@router.put("/plans/{code}", response_model=dict)
+def admin_update_plan_route(code: str, payload: SubscriptionPlanUpdate, current_admin: dict = Depends(get_current_admin), db: Database = Depends(get_db)):
+    return update_admin_plan(code, payload, db)
 
 __all__ = ["router"]

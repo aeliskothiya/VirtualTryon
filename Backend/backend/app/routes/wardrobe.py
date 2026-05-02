@@ -5,11 +5,12 @@ from app.controllers.wardrobe_controller import (
     delete_wardrobe_item,
     list_wardrobe_items,
     sync_wardrobe_embeddings,
+    update_wardrobe_item_status,
     upload_wardrobe_item,
 )
 from app.core.deps import get_current_fully_registered_user
 from app.database.connection import get_db
-from app.schemas import WardrobeEmbeddingSyncOut, WardrobeItemOut
+from app.schemas import WardrobeEmbeddingSyncOut, WardrobeItemOut, WardrobeItemStatusUpdateRequest
 
 
 router = APIRouter(prefix="/wardrobe", tags=["wardrobe"])
@@ -27,10 +28,21 @@ async def upload_wardrobe_item_route(
 
 @router.get("/items", response_model=list[WardrobeItemOut])
 def list_wardrobe_items_route(
+    include_inactive: bool = True,
     current_user: dict = Depends(get_current_fully_registered_user),
     db: Database = Depends(get_db),
 ):
-    return list_wardrobe_items(current_user, db)
+    return list_wardrobe_items(current_user, db, include_inactive=include_inactive)
+
+
+@router.patch("/items/{item_id}/status", response_model=WardrobeItemOut)
+def update_wardrobe_item_status_route(
+    item_id: str,
+    payload: WardrobeItemStatusUpdateRequest,
+    current_user: dict = Depends(get_current_fully_registered_user),
+    db: Database = Depends(get_db),
+):
+    return update_wardrobe_item_status(item_id, payload.active_status, current_user, db)
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

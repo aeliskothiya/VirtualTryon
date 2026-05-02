@@ -32,8 +32,8 @@ const pageInfo = {
     copy: 'Generate try-on renders with an optional override photo.',
   },
   activity: {
-    title: 'Usage and pricing',
-    copy: 'Review pricing, coin transactions, and usage history.',
+    title: 'Usage and plans',
+    copy: 'Review subscription limits and saved usage history.',
   },
 }
 
@@ -47,31 +47,76 @@ const pageComponents = {
 }
 
 export function DashboardScreen({ page = 'overview', onNavigate = () => {} }) {
-  const { clearNotice, dashboardState, logout, notice, session } = useAppContext()
+  const { clearNotice, dashboardState, data, logout, notice, session } = useAppContext()
   const activePage = pageComponents[page] ? page : 'overview'
   const PageComponent = pageComponents[activePage]
   const user = session.user
+  const currentPlan = data.subscriptionPlans.find((item) => item.code === user?.subscription_plan) || null
+  const wardrobeUsed = user?.wardrobe_used
+  const wardrobeLimit = user?.wardrobe_limit
+  const tryonsUsed = user?.tryons_used_today
+  const isSubscriptionExpired = user?.is_subscription_expired
+  const tryonLimit = user?.tryon_daily_limit
+  const recommendationsUsed = user?.recommendations_used_today
+  const recommendationLimit = user?.recommendation_daily_limit
+  const savedTryonsUsed = user?.saved_tryons_used_this_month
+  const savedTryonLimit = user?.saved_tryon_monthly_limit
+  const cycleEnd = user?.subscription_cycle_end
 
   const summaryMetrics = [
     {
-      label: 'Coins',
-      value: user?.coin_balance ?? 0,
-      detail: user?.is_fully_registered ? 'Ready for styling actions' : 'Complete profile setup',
-    },
-    {
-      label: 'Status',
-      value: user?.is_fully_registered ? 'Active' : 'Pending',
-      detail: 'Account readiness',
+      label: 'Plan',
+      value: currentPlan?.name || user?.subscription_plan || 'free',
+      detail: user?.is_fully_registered ? 'Current subscription tier' : 'Complete profile setup',
     },
     {
       label: 'Wardrobe',
-      value: user?.is_fully_registered ? 'Ready' : 'Setup',
-      detail: 'Feature access',
+      value:
+        wardrobeUsed !== undefined && wardrobeLimit !== undefined
+          ? `${wardrobeUsed} / ${wardrobeLimit}`
+          : `${data.wardrobe.length}${currentPlan ? ` / ${currentPlan.wardrobe_limit}` : ''}`,
+      detail: 'Wardrobe items used / total',
     },
     {
-      label: 'Mode',
-      value: activePage,
-      detail: 'Current page',
+      label: 'Try-on',
+      value:
+        tryonsUsed !== undefined && tryonLimit !== undefined
+          ? `${tryonsUsed} / ${tryonLimit}`
+          : 'Unlimited',
+      detail: 'Daily try-on used / limit',
+    },
+    {
+      label: 'Recommendations',
+      value:
+        recommendationsUsed !== undefined && recommendationLimit !== undefined && recommendationLimit !== null
+          ? `${recommendationsUsed} / ${recommendationLimit}`
+          : 'Unlimited',
+      detail: 'Daily recommendations used / limit',
+    },
+    {
+      label: 'Saved try-ons',
+      value:
+        savedTryonsUsed !== undefined && savedTryonLimit !== undefined
+          ? `${savedTryonsUsed} / ${savedTryonLimit}`
+          : `${data.tryons.length}`,
+      detail: 'Saved outputs used / monthly limit',
+    },
+    {
+      label: 'Plan expires',
+      value: cycleEnd ? new Date(cycleEnd).toLocaleDateString() : 'N/A',
+      detail: 'Current 28-day subscription cycle end',
+    },
+    {
+      label: 'Subscription',
+      value: isSubscriptionExpired ? 'Expired' : 'Active',
+      detail: isSubscriptionExpired
+        ? `Renew by ${cycleEnd ? new Date(cycleEnd).toLocaleDateString() : 'the end of the cycle'}`
+        : 'Subscription access status',
+    },
+    {
+      label: 'Account',
+      value: user?.is_fully_registered ? 'Ready' : 'Pending',
+      detail: 'Account readiness',
     },
   ]
 
@@ -100,7 +145,7 @@ export function DashboardScreen({ page = 'overview', onNavigate = () => {} }) {
           </div>
 
           <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/5 p-4">
-            <MetricCard label="Coins" value={user?.coin_balance ?? 0} detail="Current balance" />
+            <MetricCard label="Plan" value={currentPlan?.name || user?.subscription_plan || 'free'} detail="Current subscription" />
             <button
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               type="button"
@@ -125,6 +170,11 @@ export function DashboardScreen({ page = 'overview', onNavigate = () => {} }) {
         {dashboardState.error ? (
           <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
             {dashboardState.error}
+          </div>
+        ) : null}
+        {isSubscriptionExpired ? (
+          <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+            Your current plan has expired. Renew now to restore try-on and recommendation access.
           </div>
         ) : null}
         {dashboardState.loading ? (

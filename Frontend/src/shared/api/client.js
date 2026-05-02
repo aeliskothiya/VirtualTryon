@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001'
 
 function buildHeaders(token, extraHeaders = {}) {
   const headers = { ...extraHeaders }
@@ -28,13 +28,15 @@ async function request(path, options = {}) {
   if (!response.ok) {
     const error = new Error(payload?.detail || payload || 'Request failed')
     error.status = response.status
+    // Attach full payload for structured error handling (e.g., {detail: {...}})
+    error.payload = payload
     throw error
   }
 
   return payload
 }
 
-function jsonRequest(path, method, body, token) {
+export function jsonRequest(path, method, body, token) {
   return request(path, {
     method,
     token,
@@ -109,16 +111,44 @@ export function uploadProfilePhoto(token, file) {
   return formDataRequest('/me/photo', 'POST', { photo: file }, token)
 }
 
-export function getCoinTransactions(token) {
-  return request('/coins/transactions', { token })
+export function purchaseSubscriptionPlan(token, planCode) {
+  return request(`/me/subscription/${encodeURIComponent(planCode)}`, {
+    method: 'POST',
+    token,
+  })
 }
 
-export function getPricing(token) {
-  return request('/pricing', { token })
+export function createRazorpayPlanOrder(token, payload) {
+  return jsonRequest('/payments/razorpay/order', 'POST', payload, token)
 }
 
-export function getWardrobeItems(token) {
-  return request('/wardrobe/items', { token })
+export function verifyRazorpayPlanPayment(token, payload) {
+  return jsonRequest('/payments/razorpay/verify', 'POST', payload, token)
+}
+
+export function getSubscriptionPlans(token) {
+  return request('/plans', { token })
+}
+
+export function getAdminPlans(token) {
+  return request('/admin/plans', { token })
+}
+
+export function createAdminPlan(token, payload) {
+  return jsonRequest('/admin/plans', 'POST', payload, token)
+}
+
+export function updateAdminPlan(token, code, payload) {
+  return jsonRequest(`/admin/plans/${encodeURIComponent(code)}`, 'PUT', payload, token)
+}
+
+export function getWardrobeItems(token, includeInactive = false) {
+  const query = includeInactive ? '?include_inactive=true' : ''
+  return request(`/wardrobe/items${query}`, { token })
+}
+
+export function updateWardrobeItemStatus(token, itemId, status) {
+  return jsonRequest(`/wardrobe/items/${itemId}/status`, 'PATCH', { active_status: status }, token)
 }
 
 export function uploadWardrobeItem(token, payload) {
@@ -159,29 +189,22 @@ export function getAdminOverview(token) {
   return request('/admin/overview', { token })
 }
 
-export function getAdminPricing(token) {
-  return request('/admin/pricing', { token })
+export function sendOTP(payload) {
+  return jsonRequest('/auth/send-otp', 'POST', payload)
 }
 
-export function updateAdminPricing(token, feature, payload) {
-  return jsonRequest(`/admin/pricing/${feature}`, 'PATCH', payload, token)
+export function verifyOTP(payload) {
+  return jsonRequest('/auth/verify-otp', 'POST', payload)
 }
 
-export function getCoinPackages(token) {
-  return request('/admin/packages', { token })
+export function sendPasswordResetOTP(payload) {
+  return jsonRequest('/auth/password-reset/send', 'POST', payload)
 }
 
-export function upsertCoinPackage(token, payload) {
-  return jsonRequest('/admin/packages', 'POST', payload, token)
+export function verifyPasswordResetOTP(payload) {
+  return jsonRequest('/auth/password-reset/verify', 'POST', payload)
 }
 
-export function updateCoinPackage(token, code, payload) {
-  return jsonRequest(`/admin/packages/${code}`, 'PATCH', payload, token)
-}
-
-export function deleteCoinPackage(token, code) {
-  return request(`/admin/packages/${code}`, {
-    method: 'DELETE',
-    token,
-  })
+export function resetPassword(payload) {
+  return jsonRequest('/auth/password-reset/reset', 'POST', payload)
 }

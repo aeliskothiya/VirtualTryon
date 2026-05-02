@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppContext } from '../../../app/AppContext'
 import { formatDateTime } from '../../../shared/format'
 import { getMediaUrl } from '../../../shared/api/client'
@@ -17,7 +17,12 @@ const occasionOptions = [
 ]
 
 export function RecommendationsPage() {
-  const { dashboardState, data, runRecommendation, recommendationWorkspace, setRecommendationWorkspace, setTryOnWorkspace } = useAppContext()
+  const { dashboardState, data, runRecommendation, recommendationWorkspace, setRecommendationWorkspace, setTryOnWorkspace, session } = useAppContext()
+
+  const planCode = session.user?.subscription_plan || 'free'
+  const isSubscriptionExpired = session.user?.is_subscription_expired
+  const occasionFilterAvailable = planCode === 'standard' || planCode === 'premium'
+  const [showExpiryModal, setShowExpiryModal] = useState(false)
 
   const bottomItems = useMemo(() => data.wardrobe.filter((item) => item.type === 'bottom'), [data.wardrobe])
   const selectedBottomItem = useMemo(
@@ -27,9 +32,15 @@ export function RecommendationsPage() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    const remainingRecommendations = session.user?.remaining_recommendations_today
+    if (remainingRecommendations !== null && remainingRecommendations !== undefined && remainingRecommendations <= 0) {
+      setShowExpiryModal(true)
+      return
+    }
+
     await runRecommendation({
       bottom_item_id: recommendationWorkspace.form.bottom_item_id,
-      occasion: recommendationWorkspace.form.occasion || null,
+      occasion: occasionFilterAvailable ? recommendationWorkspace.form.occasion || null : null,
       suggestion_count: Number(recommendationWorkspace.form.suggestion_count),
     })
   }
@@ -93,25 +104,32 @@ export function RecommendationsPage() {
           ) : null}
 
           <FieldLabel label="Occasion">
-            <select
-              className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#c65d2c] focus:ring-4 focus:ring-[#c65d2c]/10"
-              value={recommendationWorkspace.form.occasion}
-              onChange={(event) =>
-                setRecommendationWorkspace((current) => ({
-                  ...current,
-                  form: {
-                    ...current.form,
-                    occasion: event.target.value,
-                  },
-                }))
-              }
-            >
-              {occasionOptions.map((option) => (
-                <option key={option.value || 'none'} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            {occasionFilterAvailable ? (
+              <select
+                className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#c65d2c] focus:ring-4 focus:ring-[#c65d2c]/10"
+                value={recommendationWorkspace.form.occasion}
+                onChange={(event) =>
+                  setRecommendationWorkspace((current) => ({
+                    ...current,
+                    form: {
+                      ...current.form,
+                      occasion: event.target.value,
+                    },
+                  }))
+                }
+              >
+                {occasionOptions.map((option) => (
+                  <option key={option.value || 'none'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                Occasion-based recommendations are available only on Standard and Premium plans.
+                Upgrade your plan to enable occasion selection.
+              </div>
+            )}
           </FieldLabel>
 
           <FieldLabel label="Number of suggestions">
@@ -136,11 +154,49 @@ export function RecommendationsPage() {
             </select>
           </FieldLabel>
 
-          <button className="rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b65126] disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={dashboardState.loading}>
+          <button
+            className="rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b65126] disabled:cursor-not-allowed disabled:opacity-60"
+            type="submit"
+            disabled={dashboardState.loading || isSubscriptionExpired}
+          >
             Get recommendations
           </button>
+          {isSubscriptionExpired ? (
+            <p className="text-sm text-amber-700">Your subscription expired. Renew to use recommendations again.</p>
+          ) : null}
         </form>
       </Panel>
+
+      {showExpiryModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl rounded-[32px] bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-semibold text-stone-950">Upgrade required</h3>
+            <p className="mt-3 text-sm leading-6 text-stone-600">
+              {isSubscriptionExpired
+                ? "Your plan has expired. Renew a subscription to continue using recommendations."
+                : planCode === 'free'
+                ? "You've used your free credits. Upgrade to a paid plan to continue using recommendations."
+                : "You've reached your daily limit. Try again tomorrow or upgrade for higher limits."}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="inline-flex min-w-[150px] items-center justify-center rounded-2xl bg-[#c65d2c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#b65126]"
+                onClick={() => setRouteHash('app', 'activity')}
+              >
+                Go to plans
+              </button>
+              <button
+                type="button"
+                className="inline-flex min-w-[150px] items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+                onClick={() => setShowExpiryModal(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Panel>
         <div className="mb-6">

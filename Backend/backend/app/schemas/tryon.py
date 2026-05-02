@@ -12,6 +12,8 @@ class TryOnJobOut(BaseModel):
     output_url: str | None = None
     status: str
     error_message: str | None = None
+    is_saved: bool = False
+    remaining_tryons_today: int | None = None
     created_at: datetime
 
     class Config:

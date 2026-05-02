@@ -7,20 +7,31 @@ import { Panel } from '../../../shared/ui/Panel'
 export function OverviewPage() {
   const { data, session } = useAppContext()
   const user = session.user
+  const currentPlan = data.subscriptionPlans.find((item) => item.code === user?.subscription_plan) || null
+  const isSubscriptionExpired = user?.is_subscription_expired
 
   const metrics = [
     {
-      label: 'Coins',
-      value: user?.coin_balance ?? 0,
-      detail: user?.is_fully_registered ? 'Ready for styling actions' : 'Complete profile setup',
+      label: 'Plan',
+      value: currentPlan?.name || user?.subscription_plan || 'free',
+      detail: user?.is_fully_registered ? 'Current subscription tier' : 'Complete profile setup',
     },
-    { label: 'Wardrobe', value: data.wardrobe.length, detail: 'Saved clothing items' },
-    { label: 'Recommendations', value: data.recommendations.length, detail: 'History entries' },
-    { label: 'Try-ons', value: data.tryons.length, detail: 'Generated looks' },
+    {
+      label: 'Wardrobe',
+      value: currentPlan ? `${data.wardrobe.length} / ${currentPlan.wardrobe_limit}` : data.wardrobe.length,
+      detail: 'Saved clothing items',
+    },
+    { label: 'Recommendations', value: data.recommendations.length, detail: 'Request history' },
+    { label: 'Saved try-ons', value: data.tryons.length, detail: 'Saved generated looks' },
   ]
 
   return (
     <div className="space-y-6">
+      {isSubscriptionExpired ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+          Your subscription has expired. Upgrade now to restore daily try-on and recommendations.
+        </div>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <MetricCard key={metric.label} {...metric} />
@@ -33,6 +44,7 @@ export function OverviewPage() {
             <p className="text-[0.7rem] uppercase tracking-[0.24em] text-[#8d401d]">Account status</p>
             <h3 className="mt-2 font-serif text-2xl text-stone-950">{user?.name}</h3>
             <p className="mt-1 text-sm text-stone-500">{user?.email}</p>
+            <p className="mt-2 text-sm font-semibold text-stone-700">Plan: {currentPlan?.name || user?.subscription_plan || 'free'}</p>
           </div>
 
           <div className="flex items-center gap-4 rounded-3xl border border-stone-200 bg-white p-4">

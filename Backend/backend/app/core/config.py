@@ -63,6 +63,14 @@ class Settings:
         self.default_recommendation_price = int(os.getenv("DEFAULT_RECOMMENDATION_PRICE", "3"))
         self.default_registration_bonus = int(os.getenv("DEFAULT_REGISTRATION_BONUS", "50"))
         self.admin_creation_secret = _clean(os.getenv("ADMIN_CREATION_SECRET")) or ""
+        self.razorpay_key_id = _clean(os.getenv("RAZORPAY_KEY_ID")) or ""
+        self.razorpay_key_secret = _clean(os.getenv("RAZORPAY_KEY_SECRET")) or ""
+        self.razorpay_currency = _clean(os.getenv("RAZORPAY_CURRENCY")) or "INR"
+        self.razorpay_checkout_name = _clean(os.getenv("RAZORPAY_CHECKOUT_NAME")) or "FashionAI"
+        self.razorpay_checkout_description = (
+            _clean(os.getenv("RAZORPAY_CHECKOUT_DESCRIPTION"))
+            or "Secure subscription payment for FashionAI plans"
+        )
 
         self.tryon_mock_mode = _as_bool(os.getenv("TRYON_MOCK_MODE"), default=False)
         self.vton_device = _clean(os.getenv("VTON_DEVICE")) or "cuda"
@@ -104,6 +112,21 @@ class Settings:
             if user_embeddings_root_env
             else self.fashionai_root / "datasets" / "user_wardrobes"
         )
+
+        # SMTP Configuration for Email
+        self.smtp_host = _clean(os.getenv("SMTP_HOST")) or "localhost"
+        self.smtp_port = int(os.getenv("SMTP_PORT", "2525"))
+        self.smtp_username = _clean(os.getenv("SMTP_USERNAME")) or ""
+        self.smtp_password = _clean(os.getenv("SMTP_PASSWORD")) or ""
+        self.smtp_from_email = _clean(os.getenv("SMTP_FROM_EMAIL")) or "noreply@fashionai.com"
+        self.smtp_from_name = _clean(os.getenv("SMTP_FROM_NAME")) or "FashionAI"
+        self.smtp_use_tls = _as_bool(os.getenv("SMTP_USE_TLS"), default=True)
+
+        # OTP Configuration
+        self.otp_length = int(os.getenv("OTP_LENGTH", "6"))
+        self.otp_expiry_minutes = int(os.getenv("OTP_EXPIRY_MINUTES", "10"))
+        self.otp_resend_cooldown_seconds = int(os.getenv("OTP_RESEND_COOLDOWN_SECONDS", "60"))
+        self.otp_max_verify_attempts = int(os.getenv("OTP_MAX_VERIFY_ATTEMPTS", "5"))
 
 
 settings = Settings()

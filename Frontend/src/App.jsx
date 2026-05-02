@@ -3,7 +3,7 @@ import { AppProvider } from './app/AppProvider'
 import { useAppContext } from './app/AppContext'
 import { AuthScreen } from './features/auth/AuthScreen'
 import { AdminDashboardScreen } from './features/admin/AdminDashboardScreen'
-import { AdminCoinsScreen } from './features/admin/AdminCoinsScreen'
+import { AdminPlansScreen } from './features/admin/AdminPlansScreen'
 import { DashboardScreen } from './features/dashboard/DashboardScreen'
 import { getDefaultRoute, getRouteFromHash, setRouteHash } from './shared/navigation'
 
@@ -41,15 +41,15 @@ function AppContent() {
   }, [session.kind, session.token])
 
   if (session.kind === 'admin') {
-    if (route.page === 'coins') {
-      return <AdminCoinsScreen page={route.page} onNavigate={(page) => setRouteHash('admin', page)} />
+    if (route.page === 'plans') {
+      return <AdminPlansScreen page={route.page} onNavigate={(page) => setRouteHash('admin', page)} />
     }
 
     return <AdminDashboardScreen page={route.page} onNavigate={(page) => setRouteHash('admin', page)} />
   }
 
   if (!session.token) {
-    const authMode = route.scope === 'auth' && route.page === 'register' ? 'register' : 'login'
+    const authMode = route.scope === 'auth' ? route.page : 'login'
     return <AuthScreen mode={authMode} onModeChange={(mode) => setRouteHash('auth', mode)} />
   }
 

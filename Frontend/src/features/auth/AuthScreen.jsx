@@ -1,4 +1,5 @@
 import { useAppContext } from '../../app/AppContext'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
@@ -14,6 +15,12 @@ const modeDetails = {
     eyebrow: 'Start here',
     copy: 'Create your account, then complete profile setup to unlock recommendations and try-on.',
     button: 'Create account',
+  },
+  'forgot-password': {
+    title: 'Reset password',
+    eyebrow: 'Account recovery',
+    copy: 'Verify your email with a one-time code, then choose a new password.',
+    button: 'Reset password',
   },
 }
 
@@ -77,7 +84,7 @@ export function AuthScreen({ mode = 'login', onModeChange }) {
             </article>
             <article className="rounded-3xl border border-white/10 bg-white/[0.08] p-4 text-sm backdrop-blur">
               <p className="text-[0.72rem] uppercase tracking-[0.24em] text-stone-400">Clean history</p>
-              <p className="mt-2 font-medium text-stone-100">Pricing, coins, and generated outputs</p>
+              <p className="mt-2 font-medium text-stone-100">Plans, saved outputs, and generated looks</p>
             </article>
           </div>
         </div>
@@ -110,8 +117,9 @@ export function AuthScreen({ mode = 'login', onModeChange }) {
         ) : null}
 
         <div className="mt-6">
-          {activeMode === 'login' ? <LoginPage /> : null}
+          {activeMode === 'login' ? <LoginPage onForgotPassword={() => onModeChange('forgot-password')} /> : null}
           {activeMode === 'register' ? <RegisterPage /> : null}
+          {activeMode === 'forgot-password' ? <ForgotPasswordPage onBackToLogin={() => onModeChange('login')} /> : null}
         </div>
 
       </section>

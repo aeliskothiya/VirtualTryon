@@ -27,7 +27,8 @@ class RecommendationCandidate(BaseModel):
 
 class RecommendationResponse(BaseModel):
     recommendation_id: str
-    coin_balance: int
+    subscription_plan: str = "free"
+    remaining_recommendations_today: Optional[int] = None
     results: list[RecommendationCandidate]
 
 

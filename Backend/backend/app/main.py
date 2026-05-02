@@ -6,9 +6,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.database.connection import get_db, init_indexes
-from app.database.seed.coin_package_seed import seed_default_coin_packages
-from app.database.seed.pricing_seed import seed_default_pricing
-from app.routes import admin, auth, recommendations, tryon, users, wardrobe
+from app.routes import admin, auth, payments, recommendations, tryon, users, wardrobe
+from app.services.subscription_service import load_subscription_plans_from_collection
 from app.services.storage_service import ensure_media_directories
 
 
@@ -44,6 +43,7 @@ app.mount("/media", StaticFiles(directory=str(settings.media_root)), name="media
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(payments.router)
 app.include_router(users.router)
 app.include_router(wardrobe.router)
 app.include_router(tryon.router)
@@ -73,8 +73,7 @@ def startup_event():
     logger.info("Registered tryon routes: %s", tryon_routes)
     ensure_media_directories()
     init_indexes()
-    seed_default_pricing(get_db())
-    seed_default_coin_packages(get_db())
+    load_subscription_plans_from_collection(get_db())
 
 
 @app.get("/")
@@ -82,6 +81,6 @@ def root():
     return {
         "message": "FashionAI Virtual Try-On Backend",
         "database": "mongodb",
-        "features": ["auth", "admin", "profile", "coins", "wardrobe", "tryon", "recommendations"],
+        "features": ["auth", "admin", "profile", "wardrobe", "tryon", "recommendations", "subscriptions"],
     }
     

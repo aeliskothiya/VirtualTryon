@@ -13,6 +13,7 @@ from app.services.storage_service import (
     create_wardrobe_item_path,
     save_upload_file,
 )
+from app.services.subscription_service import ensure_wardrobe_capacity, get_user_quota_snapshot
 from app.utils.helpers import serialize_document, serialize_many, utcnow
 
 
@@ -23,13 +24,16 @@ def upload_wardrobe_item(type: str, file: UploadFile, current_user: dict, db: Da
     if type not in {"top", "bottom"}:
         raise HTTPException(status_code=400, detail="Wardrobe item type must be top or bottom")
 
+    ensure_wardrobe_capacity(db, current_user)
+
     destination = create_wardrobe_item_path(str(current_user["_id"]), file.filename)
     save_upload_file(file, destination)
 
     item = {
         "user_id": str(current_user["_id"]),
         "type": type,
-        "status": "active",
+        "delete_status": "active",
+        "active_status": "active",
         "occasion": None,
         "image_url": absolute_to_media_url(destination),
         "embedding_done": False,
@@ -69,16 +73,24 @@ def upload_wardrobe_item(type: str, file: UploadFile, current_user: dict, db: Da
             {"$set": {"embedding_done": False, "embedding_error": error_message}},
         )
 
+    quota_snapshot = get_user_quota_snapshot(db, current_user)
+    item.update(
+        {
+            "wardrobe_limit": quota_snapshot["wardrobe_limit"],
+            "wardrobe_used": quota_snapshot["wardrobe_used"],
+            "wardrobe_remaining": quota_snapshot["wardrobe_remaining"],
+        }
+    )
     return serialize_document(item)
 
 
-def list_wardrobe_items(current_user: dict, db: Database) -> list[dict]:
-    items = list_wardrobe_items_for_user(db, str(current_user["_id"]))
+def list_wardrobe_items(current_user: dict, db: Database, include_inactive: bool = True) -> list[dict]:
+    items = list_wardrobe_items_for_user(db, str(current_user["_id"]), include_inactive=include_inactive)
     return serialize_many(items)
 
 
 def delete_wardrobe_item(item_id: str, current_user: dict, db: Database) -> None:
-    item = get_wardrobe_item_for_user(db, item_id, str(current_user["_id"]))
+    item = get_wardrobe_item_for_user(db, item_id, str(current_user["_id"]), include_inactive=True)
     if item is None:
         raise HTTPException(status_code=404, detail="Wardrobe item not found")
 
@@ -86,13 +98,38 @@ def delete_wardrobe_item(item_id: str, current_user: dict, db: Database) -> None
         {"_id": item["_id"]},
         {
             "$set": {
-                "status": "inactive",
+                "delete_status": "inactive",
+                "active_status": "inactive",
                 "embedding_done": False,
                 "embedding_error": None,
                 "embedding_updated_at": utcnow(),
             }
         },
     )
+
+
+def update_wardrobe_item_status(item_id: str, active_status: str, current_user: dict, db: Database) -> dict:
+    item = get_wardrobe_item_for_user(db, item_id, str(current_user["_id"]), include_inactive=True)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Wardrobe item not found")
+
+    if active_status not in {"active", "inactive"}:
+        raise HTTPException(status_code=400, detail="Active status must be active or inactive")
+
+    if active_status == "active":
+        ensure_wardrobe_capacity(db, current_user)
+
+    db.wardrobe_items.update_one(
+        {"_id": item["_id"]},
+        {
+            "$set": {
+                "active_status": active_status,
+                "embedding_updated_at": utcnow(),
+            }
+        },
+    )
+    item["active_status"] = active_status
+    return serialize_document(item)
 
 
 def sync_wardrobe_embeddings(current_user: dict, db: Database) -> dict:
@@ -137,4 +174,10 @@ def sync_wardrobe_embeddings(current_user: dict, db: Database) -> dict:
         "failures": failures,
     }
 
-__all__ = ["delete_wardrobe_item", "list_wardrobe_items", "sync_wardrobe_embeddings", "upload_wardrobe_item"]
+__all__ = [
+    "delete_wardrobe_item",
+    "list_wardrobe_items",
+    "sync_wardrobe_embeddings",
+    "upload_wardrobe_item",
+    "update_wardrobe_item_status",
+]

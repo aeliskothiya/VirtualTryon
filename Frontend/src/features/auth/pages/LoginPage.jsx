@@ -7,7 +7,7 @@ const loginDefaults = {
   password: '',
 }
 
-export function LoginPage() {
+export function LoginPage({ onForgotPassword }) {
   const { authState, login } = useAppContext()
   const [form, setForm] = useState(loginDefaults)
 
@@ -45,6 +45,12 @@ export function LoginPage() {
       >
         {authState.loading ? 'Signing in...' : 'Sign in'}
       </button>
+
+      <div className="mt-2 text-right">
+        <button type="button" onClick={onForgotPassword} className="text-sm text-[#c65d2c]">
+          Forgot password?
+        </button>
+      </div>
     </form>
   )
 }
