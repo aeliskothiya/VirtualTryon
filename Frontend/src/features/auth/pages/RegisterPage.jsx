@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppContext } from '../../../app/AppContext'
+import { useToast } from '../../../shared/components/ToastProvider'
 import { FieldLabel } from '../../../shared/ui/Field'
 import { sendOTP } from '../../../shared/api/client'
 import OTPModal from '../components/OTPModal'
@@ -13,6 +14,7 @@ const registerDefaults = {
 
 export function RegisterPage() {
   const { authState, register } = useAppContext()
+  const { addToast } = useToast()
   const [form, setForm] = useState(registerDefaults)
   const [emailVerified, setEmailVerified] = useState(false)
   const [showOTPModal, setShowOTPModal] = useState(false)
@@ -24,6 +26,7 @@ export function RegisterPage() {
   async function handleSendOTP() {
     if (!form.email) {
       setOtpError('Please enter an email')
+      addToast('Please enter an email before requesting OTP.', 'error')
       return
     }
 
@@ -40,7 +43,9 @@ export function RegisterPage() {
       setOtpModalExpires(resp?.expires_in ?? null)
       setOtpModalExpiresIso(resp?.expires_at ?? null)
     } catch (err) {
-      setOtpError(err.message || 'Failed to send OTP')
+      const message = err.message || 'Failed to send OTP'
+      setOtpError(message)
+      addToast(message, 'error')
       setOtpLoading(false)
     }
   }
@@ -49,6 +54,7 @@ export function RegisterPage() {
     setEmailVerified(true)
     setShowOTPModal(false)
     setOtpError('')
+    addToast('Email verified successfully.', 'success')
   }
 
   function handleEmailChange(newEmail) {
@@ -61,6 +67,7 @@ export function RegisterPage() {
 
     if (!emailVerified) {
       setOtpError('Please verify your email first')
+      addToast('Please verify your email first.', 'error')
       return
     }
 
@@ -104,11 +111,6 @@ export function RegisterPage() {
               </button>
             )}
           </div>
-          {otpError && (
-            <p className="text-rose-600 text-xs mt-2 flex items-center gap-1">
-              <span>⚠</span> {otpError}
-            </p>
-          )}
         </FieldLabel>
 
         <FieldLabel label="Password">

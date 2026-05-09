@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { useAppContext } from '../../app/AppContext'
+import { useToast } from '../../shared/components/ToastProvider'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
@@ -41,7 +43,14 @@ function TabButton({ active, children, ...props }) {
 
 export function AuthScreen({ mode = 'login', onModeChange }) {
   const { authState } = useAppContext()
+  const { addToast } = useToast()
   const activeMode = modeDetails[mode] ? mode : 'login'
+
+  useEffect(() => {
+    if (authState.error) {
+      addToast(authState.error, 'error')
+    }
+  }, [authState.error, addToast])
 
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-7xl gap-6 px-4 py-4 lg:grid-cols-[1.1fr_0.9fr] lg:px-6 xl:px-8">
@@ -109,12 +118,6 @@ export function AuthScreen({ mode = 'login', onModeChange }) {
           </h2>
           <p className="max-w-xl text-sm leading-7 text-stone-500">{modeDetails[activeMode].copy}</p>
         </div>
-
-        {authState.error ? (
-          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {authState.error}
-          </div>
-        ) : null}
 
         <div className="mt-6">
           {activeMode === 'login' ? <LoginPage onForgotPassword={() => onModeChange('forgot-password')} /> : null}

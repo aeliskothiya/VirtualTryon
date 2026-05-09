@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppContext } from '../../app/AppContext'
 import { setRouteHash } from '../../shared/navigation'
+import { useToast } from '../../shared/components/ToastProvider'
 import { FieldLabel } from '../../shared/ui/Field'
 
 const loginDefaults = {
@@ -10,7 +11,14 @@ const loginDefaults = {
 
 export function AdminAuthScreen() {
   const { authState, loginAdmin } = useAppContext()
+  const { addToast } = useToast()
   const [form, setForm] = useState(loginDefaults)
+
+  useEffect(() => {
+    if (authState.error) {
+      addToast(authState.error, 'error')
+    }
+  }, [authState.error, addToast])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -73,12 +81,6 @@ export function AdminAuthScreen() {
             This route is separate from the normal user login and only works for admin records stored in the admins collection.
           </p>
         </div>
-
-        {authState.error ? (
-          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {authState.error}
-          </div>
-        ) : null}
 
         <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
           <FieldLabel label="Admin email">

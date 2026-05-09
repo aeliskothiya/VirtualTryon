@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { verifyOTP, sendOTP } from "../../../shared/api/client";
+import { useToast } from "../../../shared/components/ToastProvider";
 
 export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = null, expiresAt = null }) {
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
@@ -9,6 +10,7 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const inputsRef = useRef([]);
+  const { addToast } = useToast();
 
   // Initialize cooldown from backend-provided expiry (seconds) or ISO expiry
   useEffect(() => {
@@ -49,6 +51,7 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
     const otp = digits.join("");
     if (otp.length !== 6) {
       setError("Please enter a 6-digit code");
+      addToast("Please enter a 6-digit code.", "error");
       return;
     }
 
@@ -59,13 +62,16 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
       await verifyOTP({ email, otp_code: otp });
 
       setSuccess(true);
+      addToast("Email verified successfully!", "success");
       setDigits(["", "", "", "", "", ""]);
       setTimeout(() => {
         onVerifySuccess();
         onClose();
       }, 1500);
     } catch (err) {
-      setError(err.message || "Failed to verify OTP");
+      const message = err.message || "Failed to verify OTP";
+      setError(message);
+      addToast(message, "error");
       setLoading(false);
     }
   };
@@ -88,9 +94,13 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
       const payload = err?.payload || null
       const detail = payload?.detail || err?.message
       if (payload && payload.detail && typeof payload.detail === 'object') {
-        setError(payload.detail.message || JSON.stringify(payload.detail))
+        const message = payload.detail.message || JSON.stringify(payload.detail)
+        setError(message)
+        addToast(message, "error")
       } else {
-        setError(typeof detail === "string" ? detail : (detail?.message || "Failed to resend OTP"))
+        const message = typeof detail === "string" ? detail : (detail?.message || "Failed to resend OTP")
+        setError(message)
+        addToast(message, "error")
       }
     } finally {
       setResendLoading(false);
@@ -133,13 +143,7 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
           <span className="font-semibold text-stone-900">{email}</span>
         </p>
 
-        {success ? (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
-            <p className="text-emerald-700 flex items-center gap-2 font-medium">
-              <span className="text-xl">✓</span> Email verified successfully!
-            </p>
-          </div>
-        ) : (
+        {!success ? (
           <>
             <div className="flex justify-center gap-2 mb-4" onPaste={handlePaste}>
               {digits.map((d, i) => (
@@ -159,12 +163,6 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
                 />
               ))}
             </div>
-
-            {error && (
-              <p className="text-rose-600 text-sm mb-4 flex items-center gap-2">
-                <span>⚠</span> {error}
-              </p>
-            )}
 
             <button
               onClick={handleVerify}
@@ -190,7 +188,7 @@ export default function OTPModal({ email, onVerifySuccess, onClose, expiresIn = 
               </div>
             </div>
           </>
-        )}
+        ) : null}
 
         {!success && (
           <button

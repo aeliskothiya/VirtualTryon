@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppContext } from '../../../app/AppContext'
+import { useToast } from '../../../shared/components/ToastProvider'
 import { formatDateTime } from '../../../shared/format'
 import { getMediaUrl } from '../../../shared/api/client'
 import { setRouteHash } from '../../../shared/navigation'
@@ -18,17 +19,44 @@ const occasionOptions = [
 
 export function RecommendationsPage() {
   const { dashboardState, data, runRecommendation, recommendationWorkspace, setRecommendationWorkspace, setTryOnWorkspace, session } = useAppContext()
+  const { addToast } = useToast()
 
   const planCode = session.user?.subscription_plan || 'free'
   const isSubscriptionExpired = session.user?.is_subscription_expired
   const occasionFilterAvailable = planCode === 'standard' || planCode === 'premium'
   const [showExpiryModal, setShowExpiryModal] = useState(false)
+  const warnedExpiredRef = useRef(false)
+  const warnedOccasionRef = useRef(false)
 
   const bottomItems = useMemo(() => data.wardrobe.filter((item) => item.type === 'bottom'), [data.wardrobe])
   const selectedBottomItem = useMemo(
     () => bottomItems.find((item) => item.id === recommendationWorkspace.form.bottom_item_id) || null,
     [bottomItems, recommendationWorkspace.form.bottom_item_id],
   )
+
+  useEffect(() => {
+    if (!isSubscriptionExpired) {
+      warnedExpiredRef.current = false
+      return
+    }
+
+    if (!warnedExpiredRef.current) {
+      addToast('Your subscription expired. Renew to use recommendations again.', 'info', 4200)
+      warnedExpiredRef.current = true
+    }
+  }, [isSubscriptionExpired, addToast])
+
+  useEffect(() => {
+    if (occasionFilterAvailable) {
+      warnedOccasionRef.current = false
+      return
+    }
+
+    if (!warnedOccasionRef.current) {
+      addToast('Occasion filtering is available only on Standard and Premium plans.', 'info', 4200)
+      warnedOccasionRef.current = true
+    }
+  }, [occasionFilterAvailable, addToast])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -125,10 +153,13 @@ export function RecommendationsPage() {
                 ))}
               </select>
             ) : (
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-                Occasion-based recommendations are available only on Standard and Premium plans.
-                Upgrade your plan to enable occasion selection.
-              </div>
+              <select
+                className="w-full rounded-2xl border border-stone-200 bg-stone-100 px-4 py-3 text-sm text-stone-500 outline-none"
+                value=""
+                disabled
+              >
+                <option value="">Upgrade to Standard/Premium to enable occasion filter</option>
+              </select>
             )}
           </FieldLabel>
 
@@ -161,9 +192,6 @@ export function RecommendationsPage() {
           >
             Get recommendations
           </button>
-          {isSubscriptionExpired ? (
-            <p className="text-sm text-amber-700">Your subscription expired. Renew to use recommendations again.</p>
-          ) : null}
         </form>
       </Panel>
 

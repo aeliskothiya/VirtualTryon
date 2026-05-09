@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react'
 import { useAppContext } from '../../../app/AppContext'
+import { useToast } from '../../../shared/components/ToastProvider'
 import { formatDateTime } from '../../../shared/format'
 import { getMediaUrl } from '../../../shared/api/client'
 import { MetricCard } from '../../../shared/ui/MetricCard'
@@ -6,6 +8,8 @@ import { Panel } from '../../../shared/ui/Panel'
 
 export function OverviewPage() {
   const { data, session } = useAppContext()
+  const { addToast } = useToast()
+  const warnedRef = useRef(false)
   const user = session.user
   const currentPlan = data.subscriptionPlans.find((item) => item.code === user?.subscription_plan) || null
   const isSubscriptionExpired = user?.is_subscription_expired
@@ -25,13 +29,20 @@ export function OverviewPage() {
     { label: 'Saved try-ons', value: data.tryons.length, detail: 'Saved generated looks' },
   ]
 
+  useEffect(() => {
+    if (!isSubscriptionExpired) {
+      warnedRef.current = false
+      return
+    }
+
+    if (!warnedRef.current) {
+      addToast('Your subscription has expired. Upgrade to restore daily try-on and recommendations.', 'info', 4200)
+      warnedRef.current = true
+    }
+  }, [isSubscriptionExpired, addToast])
+
   return (
     <div className="space-y-6">
-      {isSubscriptionExpired ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-          Your subscription has expired. Upgrade now to restore daily try-on and recommendations.
-        </div>
-      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (
           <MetricCard key={metric.label} {...metric} />

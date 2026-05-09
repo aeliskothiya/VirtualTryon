@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppContext } from '../../../app/AppContext'
+import { useToast } from '../../../shared/components/ToastProvider'
 import { formatDateTime } from '../../../shared/format'
 import { setRouteHash } from '../../../shared/navigation'
 import { Panel } from '../../../shared/ui/Panel'
 
 export function ActivityPage() {
   const { data, session, purchasePlan } = useAppContext()
+  const { addToast } = useToast()
+  const warnedRef = useRef(false)
   const [downgradeModal, setDowngradeModal] = useState(null)
   const currentPlanCode = session.user?.subscription_plan || 'free'
   const hasUsedFreePlan = session.user?.has_used_free_plan || false
@@ -20,6 +23,18 @@ export function ActivityPage() {
 
   const isSubscriptionExpired = session.user?.is_subscription_expired
   const currentWardrobeCount = data.wardrobe.length
+
+  useEffect(() => {
+    if (!isSubscriptionExpired) {
+      warnedRef.current = false
+      return
+    }
+
+    if (!warnedRef.current) {
+      addToast('Your active subscription has expired. Renew a plan to resume try-on and recommendations.', 'info', 4200)
+      warnedRef.current = true
+    }
+  }, [isSubscriptionExpired, addToast])
 
   async function handlePurchase(planCode) {
     const isSamePlan = planCode === currentPlanCode
@@ -44,11 +59,6 @@ export function ActivityPage() {
 
   return (
     <div className="space-y-4">
-      {isSubscriptionExpired ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-          Your active subscription has expired. Renew a plan to resume try-on and recommendation usage.
-        </div>
-      ) : null}
       <div className="grid gap-6 xl:grid-cols-2">
       <Panel>
         <div className="mb-6">

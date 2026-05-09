@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppProvider } from './app/AppProvider'
 import { useAppContext } from './app/AppContext'
+import { ToastProvider } from './shared/components/ToastProvider'
 import { AuthScreen } from './features/auth/AuthScreen'
 import { AdminDashboardScreen } from './features/admin/AdminDashboardScreen'
 import { AdminPlansScreen } from './features/admin/AdminPlansScreen'
@@ -61,7 +62,9 @@ function AppContent() {
 function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AppProvider>
   )
 }
