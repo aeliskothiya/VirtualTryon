@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-[#f4ede4] text-stone-900 font-sans antialiased;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(214, 123, 61, 0.22), transparent 24%),
+      radial-gradient(circle at 85% 5%, rgba(41, 90, 116, 0.16), transparent 20%),
+      radial-gradient(circle at 90% 88%, rgba(198, 93, 44, 0.12), transparent 20%),
+      linear-gradient(180deg, #faf6f0 0%, #f4ede4 44%, #e7ddd0 100%);
+    background-attachment: fixed;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-serif tracking-tight text-stone-950;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    @apply font-sans;
+  }
+
+  * {
+    @apply border-stone-200;
+  }
+}
+
+@keyframes toastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(28px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.toast-enter {
+  animation: toastSlideIn 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}

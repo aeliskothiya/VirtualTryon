@@ -9,6 +9,8 @@ import {
   ChevronUp,
   ImageOff,
   AlertCircle,
+  Crown,
+  AlertTriangle,
 } from 'lucide-react';
 import { useTryOn, useWardrobe, useNotification, useUser } from '@/hooks';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +22,7 @@ import { useConfettiBlast } from '@/components/common/Confetti';
 export default function TryOnPage() {
   const navigate = useNavigate();
   const { createTryOn, currentJob, isProcessing, processingProgress } = useTryOn();
-  const { getTops } = useWardrobe();
+  const { fetchItems, items, getTops } = useWardrobe();
   const { profile } = useUser();
   const { showSuccess, showError } = useNotification();
   const { triggerConfetti } = useConfettiBlast();
@@ -33,10 +35,20 @@ export default function TryOnPage() {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isSliderDragging, setIsSliderDragging] = useState(false);
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // Subscription checks
+  const isSubscriptionExpired = profile?.is_subscription_expired;
+  const planCode = profile?.subscription_plan || 'free';
+  const remainingTryons = profile?.remaining_tryons_today;
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
   useEffect(() => {
     setTops(getTops());
-  }, []);
+  }, [items, getTops]);
 
   // Trigger confetti when try-on results are ready
   useEffect(() => {
@@ -83,6 +95,18 @@ export default function TryOnPage() {
     }
     if (!userPhoto) {
       showError('Please upload your photo');
+      return;
+    }
+
+    // Block if subscription expired
+    if (isSubscriptionExpired) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    // Block if daily limit reached
+    if (remainingTryons !== null && remainingTryons !== undefined && remainingTryons <= 0) {
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -366,6 +390,14 @@ export default function TryOnPage() {
                   Generate Try-On
                 </AnimatedButton>
               </div>
+              {isSubscriptionExpired && (
+                <div className="mt-4 p-3 bg-rose-dust/10 rounded-lg border border-rose-dust/20 flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-rose-dust" />
+                  <p className="text-xs text-rose-dust font-medium">
+                    Your subscription has expired. Please renew to continue using virtual try-on.
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -555,8 +587,67 @@ export default function TryOnPage() {
               </div>
             </motion.div>
           )}
-        </AnimatePresence>
-      </div>
+      </AnimatePresence>
+
+        </div>
+
+      {/* UPGRADE MODAL */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowUpgradeModal(false)}
+              className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-cream rounded-2xl shadow-luxury overflow-hidden"
+            >
+              <div className="h-2 bg-gradient-gold" />
+              <div className="p-8">
+                <div className="w-16 h-16 bg-gold-accent/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+                  <Crown size={32} className="text-gold-accent" />
+                </div>
+                
+                <h3 className="text-2xl font-bold text-charcoal text-center mb-3">
+                  {isSubscriptionExpired ? 'Subscription Expired' : 'Daily Limit Reached'}
+                </h3>
+                
+                <p className="text-warm-taupe text-center mb-8">
+                  {isSubscriptionExpired
+                    ? "Your premium access has expired. Renew your subscription to continue creating stunning virtual looks."
+                    : planCode === 'free'
+                    ? "You've used all your free credits for today. Upgrade to a premium plan to continue your style journey."
+                    : "You've reached your daily try-on limit for the " + planCode + " plan. Upgrade for more creations or try again tomorrow."}
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <AnimatedButton
+                    variant="secondary"
+                    onClick={() => setShowUpgradeModal(false)}
+                    className="flex-1"
+                  >
+                    Maybe Later
+                  </AnimatedButton>
+                  <AnimatedButton
+                    variant="primary"
+                    onClick={() => navigate('/subscription')}
+                    className="flex-1 flex items-center justify-center gap-2"
+                  >
+                    View Plans
+                    <Play size={16} className="rotate-0" />
+                  </AnimatedButton>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

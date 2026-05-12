@@ -56,6 +56,12 @@ module.exports = {
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
+      backgroundImage: {
+        'gradient-gold': 'linear-gradient(135deg, #ca8a04 0%, #d9a405 100%)',
+        'gradient-sage': 'linear-gradient(135deg, #5a6a4d 0%, #6b7d5e 100%)',
+        'gradient-powder': 'linear-gradient(135deg, #7a8ba3 0%, #8397b1 100%)',
+        'gradient-rose': 'linear-gradient(135deg, #947585 0%, #826875 100%)',
+      },
       fontFamily: {
         'sans': ['Inter', '-apple-system', 'system-ui', 'sans-serif'],
         'display': ['Sohne', 'Inter', 'system-ui', 'sans-serif'],

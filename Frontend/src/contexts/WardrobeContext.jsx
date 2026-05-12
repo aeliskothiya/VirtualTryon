@@ -89,15 +89,15 @@ export const WardrobeProvider = ({ children }) => {
 
   const getFilteredItems = useCallback(() => {
     if (filter === 'all') return items;
-    return items.filter((item) => item.type === filter);
+    return items.filter((item) => item.type === filter && item.active_status === 'active');
   }, [items, filter]);
 
   const getTops = useCallback(() => {
-    return wardrobeAPI.getWardrobeByType(items, 'top');
+    return items.filter((item) => item.type === 'top' && item.active_status === 'active');
   }, [items]);
 
   const getBottoms = useCallback(() => {
-    return wardrobeAPI.getWardrobeByType(items, 'bottom');
+    return items.filter((item) => item.type === 'bottom' && item.active_status === 'active');
   }, [items]);
 
   const value = {

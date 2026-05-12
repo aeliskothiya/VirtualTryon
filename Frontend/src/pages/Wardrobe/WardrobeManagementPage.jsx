@@ -11,8 +11,12 @@ import {
   Sparkles,
   ImageOff,
   RefreshCw,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from 'lucide-react';
 import { useWardrobe, useNotification } from '@/hooks';
+import { useUser } from '@/hooks';
 import { useNavigate } from 'react-router-dom';
 import { validateImageFile } from '@/utils/validators';
 import {
@@ -26,7 +30,8 @@ import { AnimatedStaggerContainer, AnimatedStaggerItem } from '@/components/comm
 
 export default function WardrobeManagementPage() {
   const navigate = useNavigate();
-  const { items, fetchItems, uploadItem, deleteItem, isLoading } = useWardrobe();
+  const { items, fetchItems, uploadItem, deleteItem, updateItemStatus, syncEmbeddings, isLoading } = useWardrobe();
+  const { profile } = useUser();
   const { showSuccess, showError } = useNotification();
 
   const [uploading, setUploading] = useState(false);
@@ -37,8 +42,13 @@ export default function WardrobeManagementPage() {
   const [viewMode, setViewMode] = useState('grid');
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading state
 
+  const activeItemCount = items.filter((item) => item.active_status === 'active').length;
+  const wardrobeLimit = profile?.wardrobe_limit;
+  const canUploadMore =
+    typeof wardrobeLimit !== 'number' || activeItemCount < wardrobeLimit;
+
   useEffect(() => {
-    fetchItems();
+    fetchItems(true); // Fetch all items including inactive ones
   }, []);
 
   const filteredItems = activeFilter === 'all' 
@@ -81,12 +91,18 @@ export default function WardrobeManagementPage() {
       showError('Please select a file');
       return;
     }
+
+    if (!canUploadMore) {
+      showError('Wardrobe limit reached. Upgrade your plan to add more items.');
+      return;
+    }
+
     setUploading(true);
     try {
       await uploadItem(uploadType, previewFile);
       showSuccess(`${uploadType.charAt(0).toUpperCase() + uploadType.slice(1)} uploaded successfully!`);
       setPreviewFile(null);
-      await fetchItems();
+      await fetchItems(true);
     } catch (error) {
       showError(error.message || 'Upload failed');
     } finally {
@@ -99,10 +115,20 @@ export default function WardrobeManagementPage() {
       try {
         await deleteItem(itemId);
         showSuccess('Item removed');
-        await fetchItems();
+        await fetchItems(true);
       } catch (error) {
         showError(error.message || 'Delete failed');
       }
+    }
+  };
+
+  const handleToggleStatus = async (item) => {
+    const nextStatus = item.active_status === 'active' ? 'inactive' : 'active';
+    try {
+      await updateItemStatus(item.id, nextStatus);
+      showSuccess(`Item ${nextStatus === 'active' ? 'activated' : 'deactivated'}`);
+    } catch (error) {
+      showError(error.message || 'Status update failed');
     }
   };
 
@@ -238,9 +264,9 @@ export default function WardrobeManagementPage() {
                     <AnimatedButton 
                       variant="primary"
                       onClick={handleUpload}
-                      disabled={uploading}
+                      disabled={uploading || !canUploadMore}
                     >
-                      {uploading ? 'Adding...' : 'Add to Wardrobe'}
+                      {uploading ? 'Adding...' : canUploadMore ? 'Add to Wardrobe' : 'Wardrobe Full'}
                     </AnimatedButton>
                   </div>
                 </motion.div>
@@ -313,6 +339,7 @@ export default function WardrobeManagementPage() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                onClick={syncEmbeddings}
                 className="w-full btn-ghost py-3 flex items-center justify-center gap-2 group font-medium"
               >
                 <Sparkles size={18} className="group-hover:rotate-180 transition-transform" />
@@ -418,9 +445,21 @@ export default function WardrobeManagementPage() {
                   whileHover="hover"
                   className="group"
                 >
-                  <div className={`card-hover relative overflow-hidden ${
+                  <div className={`card-hover relative overflow-hidden transition-all ${
+                    item.active_status === 'inactive' ? 'opacity-70 grayscale-[0.3]' : ''
+                  } ${
                     viewMode === 'list' ? 'flex gap-4 items-center' : 'space-y-4'
                   }`}>
+                    {/* STATUS BADGE */}
+                    <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
+                        item.active_status === 'active' 
+                          ? 'bg-sage text-white' 
+                          : 'bg-warm-taupe text-white'
+                      }`}>
+                        {item.active_status}
+                      </span>
+                    </div>
                     {/* IMAGE */}
                     <div className={`relative ${viewMode === 'list' ? 'w-24 h-24 flex-shrink-0' : 'aspect-square'} overflow-hidden rounded-lg bg-beige`}>
                       {imageLoadState[item.id] !== 'error' ? (
@@ -460,13 +499,43 @@ export default function WardrobeManagementPage() {
                         <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-sage/10 text-sage">
                           {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
                         </span>
-                        <motion.button
-                          whileHover={{ rotate: 90 }}
-                          onClick={() => handleDelete(item.id)}
-                          className="p-2 hover:bg-rose-dust/10 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} className="text-rose-dust" />
-                        </motion.button>
+                        <div className="flex gap-1">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleToggleStatus(item)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              item.active_status === 'active' 
+                                ? 'hover:bg-warm-taupe/10 text-warm-taupe' 
+                                : 'hover:bg-sage/10 text-sage'
+                            }`}
+                            title={item.active_status === 'active' ? 'Deactivate' : 'Activate'}
+                          >
+                            {item.active_status === 'active' ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ rotate: 90 }}
+                            onClick={() => handleDelete(item.id)}
+                            className="p-2 hover:bg-rose-dust/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} className="text-rose-dust" />
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      {/* EMBEDDING STATUS */}
+                      <div className="mt-2 mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-2 h-2 rounded-full ${item.embedding_done ? 'bg-sage' : 'bg-gold-accent animate-pulse'}`} />
+                          <span className={`text-[10px] font-medium ${item.embedding_done ? 'text-sage' : 'text-gold-accent'}`}>
+                            {item.embedding_done ? 'AI Ready' : 'AI Processing'}
+                          </span>
+                        </div>
+                        {!item.embedding_done && item.embedding_error && (
+                          <p className="text-[9px] text-rose-dust mt-1 leading-tight">
+                            {item.embedding_error.slice(0, 50)}...
+                          </p>
+                        )}
                       </div>
                       {viewMode === 'list' && (
                         <p className="text-sm text-warm-taupe">

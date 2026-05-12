@@ -28,14 +28,17 @@ export const SubscriptionProvider = ({ children }) => {
     }
   }, []);
 
-  const createPaymentOrder = useCallback(async (planCode) => {
+  const createPaymentOrder = useCallback(async (planCode, billingCycle = 'monthly') => {
     setIsLoading(true);
     setError(null);
     try {
+      console.log('[SubscriptionContext] Creating payment order for plan:', planCode);
       const response = await paymentAPI.createPaymentOrder(planCode);
+      console.log('[SubscriptionContext] Payment order created:', response.data);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to create payment order';
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to create payment order';
+      console.error('[SubscriptionContext] Error creating payment order:', errorMsg);
       setError(errorMsg);
       throw err;
     } finally {
@@ -47,16 +50,24 @@ export const SubscriptionProvider = ({ children }) => {
     setIsLoading(true);
     setError(null);
     try {
+      console.log('[SubscriptionContext] Verifying payment...');
       const response = await paymentAPI.verifyPayment(
         planCode,
         orderId,
         paymentId,
         signature
       );
-      setCurrentPlan(response.data);
+      console.log('[SubscriptionContext] Payment verified, user updated:', response.data);
+      
+      // Keep currentPlan shape as plan metadata (code), not full user profile.
+      if (response.data && response.data.subscription_plan) {
+        setCurrentPlan({ code: String(response.data.subscription_plan).toLowerCase() });
+      }
+      
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Payment verification failed';
+      const errorMsg = err.response?.data?.detail || err.message || 'Payment verification failed';
+      console.error('[SubscriptionContext] Error verifying payment:', errorMsg);
       setError(errorMsg);
       throw err;
     } finally {

@@ -162,8 +162,8 @@ def _subscription_cycle_start(user: dict[str, Any], now: Optional[datetime] = No
 
 def _subscription_duration() -> timedelta:
     # Keep expiry and displayed cycle end in sync.
-    return timedelta(days=28)  # Approximate monthly cycle as 28 days for simplicity
-
+    return timedelta(seconds=120)  # Approximate monthly cycle as 28 days for simplicity
+#days=28)
 
 def _subscription_cycle_end(user: dict[str, Any], now: Optional[datetime] = None) -> datetime:
     return _subscription_cycle_start(user, now) + _subscription_duration()
