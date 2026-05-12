@@ -1,0 +1,3027 @@
+
+==================================================
+BACKEND API DOCUMENTATION
+==================================================
+
+# Complete Frontend API Documentation - FashionAI Virtual Try-On Platform
+
+## Table of Contents
+1. [Quick Reference](#quick-reference)
+2. [Backend Configuration](#backend-configuration)
+3. [Authentication Module](#authentication-module)
+4. [User Profile Module](#user-profile-module)
+5. [Wardrobe Management Module](#wardrobe-management-module)
+6. [Virtual Try-On Module](#virtual-try-on-module)
+7. [Recommendation Engine Module](#recommendation-engine-module)
+8. [Subscription & Payments Module](#subscription--payments-module)
+9. [Admin Dashboard Module](#admin-dashboard-module)
+10. [Complete Flows & Architecture](#complete-flows--architecture)
+
+---
+
+## Quick Reference
+
+### Base URL
+```
+http://localhost:8000  (Development)
+https://api.fashionai.com  (Production - configure in .env)
+```
+
+### Required Headers (All Authenticated Endpoints)
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json (or multipart/form-data for file uploads)
+```
+
+### Common Error Responses
+```json
+{
+  "detail": "Error message here"
+}
+```
+
+| Status Code | Meaning |
+|---|---|
+| 200 | Success |
+| 201 | Created |
+| 204 | No Content (successful delete) |
+| 400 | Bad Request (validation error) |
+| 401 | Unauthorized (invalid/missing token) |
+| 403 | Forbidden (insufficient permissions) |
+| 404 | Not Found |
+| 500 | Server Error |
+
+---
+
+## Backend Configuration
+
+### Environment Variables Needed (Frontend .env)
+```env
+# Backend API Configuration
+VITE_API_BASE_URL=http://localhost:8000
+VITE_API_TIMEOUT=30000
+
+# Razorpay Payment Gateway
+VITE_RAZORPAY_KEY_ID=your_razorpay_key_id
+
+# Feature Flags
+VITE_ENABLE_TRY_ON=true
+VITE_ENABLE_RECOMMENDATIONS=true
+VITE_ENABLE_PAYMENTS=true
+
+# Image Upload
+VITE_MAX_IMAGE_SIZE=10485760  # 10MB in bytes
+VITE_ALLOWED_IMAGE_TYPES=image/jpeg,image/png,image/webp
+
+# Try-On Processing
+VITE_TRYON_POLLING_INTERVAL=2000  # Poll every 2 seconds
+VITE_TRYON_MAX_POLLING_TIME=300000  # Stop after 5 minutes
+
+# Storage
+VITE_MEDIA_BASE_URL=http://localhost:8000/media
+```
+
+### Initialize API Client (Frontend Setup)
+```typescript
+// services/api.ts
+import axios from 'axios';
+
+const API = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'),
+});
+
+// Request interceptor
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor for token refresh
+API.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default API;
+```
+
+---
+
+# Authentication Module
+
+## 1. Registration Step 1 (Email Verification + Account Creation)
+
+### Page Name
+**Registration Page - Step 1 (Email Verification)**
+
+### Purpose
+Users submit email and password; system sends OTP code to verify email ownership before creating account.
+
+### APIs Used on This Page
+1. `POST /auth/send-otp` - Send OTP to email
+2. `POST /auth/verify-otp` - Verify OTP code
+3. `POST /auth/register/step-1` - Create account after email verification
+
+### API 1: Send OTP
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/send-otp`
+
+**Authentication Required:** No
+
+**Required Headers:** 
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "success": true,
+  "message": "OTP sent to your email"
+}
+```
+
+**Response JSON Example (Failure 400):**
+```json
+{
+  "success": false,
+  "message": "Email sending failed"
+}
+```
+
+**Validation Rules:**
+- Email must be valid email format
+- Email must not already be registered
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Invalid email format | Use valid email |
+| 400 | Email already registered | Use different email or login |
+| 500 | Email service error | Retry after few seconds |
+
+---
+
+### API 2: Verify OTP
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/verify-otp`
+
+**Authentication Required:** No
+
+**Required Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "otp_code": "123456"
+}
+```
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "success": true,
+  "message": "Email verified successfully"
+}
+```
+
+**Response JSON Example (Failure 400):**
+```json
+{
+  "success": false,
+  "message": "Invalid OTP code"
+}
+```
+
+**Validation Rules:**
+- OTP code must be exactly 6 digits
+- OTP must be numeric only
+- OTP valid for 10 minutes after sending
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Invalid OTP | Enter correct code sent to email |
+| 400 | OTP expired | Request new OTP |
+| 400 | Email not found | Send OTP first |
+
+---
+
+### API 3: Register Step 1
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/register/step-1`
+
+**Authentication Required:** No
+
+**Required Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "SecurePass123",
+  "confirm_password": "SecurePass123"
+}
+```
+
+**Response JSON Example (Success 201):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "kind": "user",
+  "user": {
+    "id": "507f1f77bcf86cd799439011",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "profile_photo_url": null,
+    "gender_preference": null,
+    "subscription_plan": "free",
+    "has_used_free_plan": true,
+    "is_fully_registered": false,
+    "wardrobe_limit": 50,
+    "wardrobe_used": 0,
+    "wardrobe_remaining": 50,
+    "tryon_daily_limit": 5,
+    "tryons_used_today": 0,
+    "remaining_tryons_today": 5,
+    "recommendation_daily_limit": 3,
+    "recommendations_used_today": 0,
+    "remaining_recommendations_today": 3,
+    "saved_tryon_monthly_limit": 0,
+    "saved_tryons_used_this_month": 0,
+    "remaining_saved_tryons_this_month": 0,
+    "subscription_started_at": "2026-05-10T10:30:00Z",
+    "subscription_cycle_start": "2026-05-10T10:30:00Z",
+    "subscription_cycle_end": "2026-06-10T10:30:00Z",
+    "subscription_expires_at": null,
+    "is_subscription_expired": false,
+    "created_at": "2026-05-10T10:30:00Z",
+    "updated_at": "2026-05-10T10:30:00Z"
+  }
+}
+```
+
+**Response JSON Example (Failure 400):**
+```json
+{
+  "detail": "Passwords do not match"
+}
+```
+
+**Validation Rules:**
+- Name: 2-120 characters
+- Email: valid email format, must be verified via OTP
+- Password: min 6, max 128 characters
+- Passwords must match
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Passwords do not match | Ensure passwords are identical |
+| 400 | Email already registered | Use different email |
+| 400 | Email not verified | Verify email with OTP first |
+| 400 | Invalid email format | Use valid email address |
+
+**State Variables Needed:**
+```typescript
+const [email, setEmail] = useState('');
+const [name, setName] = useState('');
+const [password, setPassword] = useState('');
+const [confirmPassword, setConfirmPassword] = useState('');
+const [otp, setOtp] = useState('');
+const [isOtpSent, setIsOtpSent] = useState(false);
+const [isOtpVerified, setIsOtpVerified] = useState(false);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState('');
+const [otpResendCountdown, setOtpResendCountdown] = useState(0);
+```
+
+**React Hooks Needed:**
+```typescript
+import { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import API from '@/services/api';
+
+// OTP resend countdown
+useEffect(() => {
+  if (otpResendCountdown > 0) {
+    const timer = setTimeout(() => setOtpResendCountdown(prev => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  }
+}, [otpResendCountdown]);
+
+// Auto-focus OTP input
+const otpInputRef = useRef(null);
+useEffect(() => {
+  if (isOtpSent && otpInputRef.current) {
+    otpInputRef.current.focus();
+  }
+}, [isOtpSent]);
+```
+
+**User Workflow:**
+1. User enters email, clicks "Send OTP"
+2. Backend sends OTP to email → Show "Check your email" message
+3. User receives email, enters 6-digit OTP
+4. User clicks "Verify OTP"
+5. Backend verifies OTP → Show "Email verified"
+6. User fills name & password → Clicks "Create Account"
+7. Backend creates account, returns auth token
+8. Store token in localStorage
+9. Redirect to Registration Step 2
+
+**Loading States:**
+```typescript
+const handleSendOtp = async () => {
+  setLoading(true);
+  try {
+    const response = await API.post('/auth/send-otp', { email });
+    if (response.data.success) {
+      setIsOtpSent(true);
+      setOtpResendCountdown(60);
+      showNotification('OTP sent to your email', 'success');
+    }
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Failed to send OTP');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleVerifyOtp = async () => {
+  setLoading(true);
+  try {
+    const response = await API.post('/auth/verify-otp', { email, otp_code: otp });
+    if (response.data.success) {
+      setIsOtpVerified(true);
+      showNotification('Email verified successfully', 'success');
+    }
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Invalid OTP');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleRegister = async () => {
+  if (password !== confirmPassword) {
+    setError('Passwords do not match');
+    return;
+  }
+  
+  setLoading(true);
+  try {
+    const response = await API.post('/auth/register/step-1', {
+      name,
+      email,
+      password,
+      confirm_password: confirmPassword,
+    });
+    
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+    navigate('/register/step-2');
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Registration failed');
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Recommended Frontend Components:**
+- EmailInput (with validation icon)
+- OTPInput (6 separate boxes for each digit)
+- PasswordStrengthMeter
+- LoadingButton (with spinner)
+- Toast/Alert notifications
+- ProgressBar (showing registration progress)
+
+---
+
+## 2. Registration Step 2 (Profile Setup)
+
+### Page Name
+**Registration Page - Step 2 (Profile Photo & Preferences)**
+
+### Purpose
+After email verification, users upload profile photo and set gender preference for personalized recommendations.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/register/step-2`
+
+**Authentication Required:** Yes (Bearer token from Step 1)
+
+**Required Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+**Request Body:**
+```
+Form Data:
+- gender_preference: "male" | "female" | "other"
+- photo: <File> (JPEG, PNG, WebP max 10MB)
+```
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "profile_photo_url": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+  "gender_preference": "male",
+  "subscription_plan": "free",
+  "has_used_free_plan": true,
+  "is_fully_registered": true,
+  "wardrobe_limit": 50,
+  "wardrobe_used": 0,
+  "wardrobe_remaining": 50,
+  "tryon_daily_limit": 5,
+  "tryons_used_today": 0,
+  "remaining_tryons_today": 5,
+  "recommendation_daily_limit": 3,
+  "recommendations_used_today": 0,
+  "remaining_recommendations_today": 3,
+  "saved_tryon_monthly_limit": 0,
+  "saved_tryons_used_this_month": 0,
+  "remaining_saved_tryons_this_month": 0,
+  "subscription_started_at": "2026-05-10T10:30:00Z",
+  "subscription_cycle_start": "2026-05-10T10:30:00Z",
+  "subscription_cycle_end": "2026-06-10T10:30:00Z",
+  "subscription_expires_at": null,
+  "is_subscription_expired": false,
+  "created_at": "2026-05-10T10:30:00Z",
+  "updated_at": "2026-05-10T10:35:00Z"
+}
+```
+
+**Response JSON Example (Failure 403):**
+```json
+{
+  "detail": "Complete registration step 2 before using this feature"
+}
+```
+
+**Validation Rules:**
+- gender_preference: Must be exactly "male", "female", or "other"
+- photo: JPEG, PNG, or WebP
+- photo: max 10MB (10485760 bytes)
+- photo: min 100x100 pixels recommended
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Invalid gender preference | Select from male/female/other |
+| 400 | File too large | Upload image under 10MB |
+| 400 | Invalid file format | Use JPEG, PNG, or WebP |
+| 403 | Not authenticated | Token expired, login again |
+
+**File Upload Requirements:**
+```typescript
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const validateFile = (file: File): { valid: boolean; error?: string } => {
+  if (!file) return { valid: false, error: 'No file selected' };
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return { valid: false, error: 'Only JPEG, PNG, WebP allowed' };
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return { valid: false, error: 'File must be under 10MB' };
+  }
+  return { valid: true };
+};
+```
+
+**State Variables Needed:**
+```typescript
+const [genderPreference, setGenderPreference] = useState('');
+const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+const [previewUrl, setPreviewUrl] = useState('');
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState('');
+const [uploadProgress, setUploadProgress] = useState(0);
+```
+
+**React Hooks Needed:**
+```typescript
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import API from '@/services/api';
+
+const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    setError(validation.error || 'Invalid file');
+    return;
+  }
+  
+  setProfilePhoto(file);
+  const reader = new FileReader();
+  reader.onloadend = () => setPreviewUrl(reader.result as string);
+  reader.readAsDataURL(file);
+  setError('');
+};
+
+const handleSubmit = async () => {
+  if (!genderPreference || !profilePhoto) {
+    setError('Please fill all fields');
+    return;
+  }
+  
+  setLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append('gender_preference', genderPreference);
+    formData.append('photo', profilePhoto);
+    
+    const response = await API.post('/auth/register/step-2', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round(
+          (progressEvent.loaded * 100) / (progressEvent.total || 1)
+        );
+        setUploadProgress(percentCompleted);
+      },
+    });
+    
+    localStorage.setItem('user', JSON.stringify(response.data));
+    navigate('/home');
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Registration failed');
+  } finally {
+    setLoading(false);
+    setUploadProgress(0);
+  }
+};
+```
+
+**Loading States Needed:**
+- Photo upload progress bar (0-100%)
+- Disabled submit button during upload
+- Loading spinner
+
+---
+
+## 3. Login
+
+### Page Name
+**Login Page**
+
+### Purpose
+Existing users authenticate with email and password to get access token.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/login`
+
+**Authentication Required:** No
+
+**Required Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com",
+  "password": "SecurePass123"
+}
+```
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "kind": "user",
+  "user": {
+    "id": "507f1f77bcf86cd799439011",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "profile_photo_url": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+    "gender_preference": "male",
+    "subscription_plan": "free",
+    "has_used_free_plan": true,
+    "is_fully_registered": true,
+    "wardrobe_limit": 50,
+    "wardrobe_used": 0,
+    "wardrobe_remaining": 50,
+    "tryon_daily_limit": 5,
+    "tryons_used_today": 0,
+    "remaining_tryons_today": 5,
+    "recommendation_daily_limit": 3,
+    "recommendations_used_today": 0,
+    "remaining_recommendations_today": 3,
+    "subscription_started_at": "2026-05-10T10:30:00Z",
+    "subscription_cycle_start": "2026-05-10T10:30:00Z",
+    "subscription_cycle_end": "2026-06-10T10:30:00Z",
+    "created_at": "2026-05-10T10:30:00Z",
+    "updated_at": "2026-05-10T10:35:00Z"
+  }
+}
+```
+
+**Response JSON Example (Failure 401):**
+```json
+{
+  "detail": "Invalid email or password"
+}
+```
+
+**Validation Rules:**
+- Email: valid email format
+- Password: min 6, max 128 characters
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 401 | Invalid email or password | Check email/password |
+| 400 | Invalid email format | Use valid email |
+
+**Token Management:**
+```typescript
+const handleLogin = async () => {
+  setLoading(true);
+  try {
+    const response = await API.post('/auth/login', {
+      email,
+      password,
+    });
+    
+    // Store token and user data
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+    localStorage.setItem('token_type', response.data.token_type);
+    localStorage.setItem('kind', response.data.kind);
+    
+    // Redirect based on registration status
+    if (response.data.user.is_fully_registered) {
+      navigate('/home');
+    } else {
+      navigate('/register/step-2');
+    }
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Login failed');
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleLogout = () => {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('token_type');
+  localStorage.removeItem('kind');
+  navigate('/login');
+};
+```
+
+---
+
+## 4. Password Reset Flow
+
+### Page Name
+**Forgot Password → Verify OTP → Reset Password**
+
+### APIs Used
+1. `POST /auth/password-reset/send` - Send reset OTP
+2. `POST /auth/password-reset/verify` - Verify OTP and get reset token
+3. `POST /auth/password-reset/reset` - Reset password with token
+
+### API 1: Send Password Reset OTP
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/password-reset/send`
+
+**Authentication Required:** No
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "message": "Password reset OTP sent to your email"
+}
+```
+
+---
+
+### API 2: Verify Password Reset OTP
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/password-reset/verify`
+
+**Authentication Required:** No
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com",
+  "otp_code": "123456"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "message": "OTP verified",
+  "reset_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+---
+
+### API 3: Reset Password
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /auth/password-reset/reset`
+
+**Authentication Required:** No
+
+**Request Body:**
+```json
+{
+  "reset_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "new_password": "NewSecurePass123",
+  "confirm_password": "NewSecurePass123"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+---
+
+# User Profile Module
+
+## 1. Get Current User Profile
+
+### Page Name
+**Dashboard / Profile View**
+
+### Purpose
+Fetch current authenticated user's profile information including subscription status and quotas.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /me`
+
+**Authentication Required:** Yes
+
+**Required Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "profile_photo_url": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+  "gender_preference": "male",
+  "subscription_plan": "premium",
+  "has_used_free_plan": true,
+  "is_fully_registered": true,
+  "wardrobe_limit": 200,
+  "wardrobe_used": 45,
+  "wardrobe_remaining": 155,
+  "tryon_daily_limit": 50,
+  "tryons_used_today": 5,
+  "remaining_tryons_today": 45,
+  "recommendation_daily_limit": 20,
+  "recommendations_used_today": 3,
+  "remaining_recommendations_today": 17,
+  "saved_tryon_monthly_limit": 100,
+  "saved_tryons_used_this_month": 25,
+  "remaining_saved_tryons_this_month": 75,
+  "subscription_started_at": "2026-05-01T10:30:00Z",
+  "subscription_cycle_start": "2026-05-01T10:30:00Z",
+  "subscription_cycle_end": "2026-06-01T10:30:00Z",
+  "subscription_expires_at": "2026-06-01T10:30:00Z",
+  "is_subscription_expired": false,
+  "created_at": "2026-05-10T10:30:00Z",
+  "updated_at": "2026-05-10T15:45:00Z"
+}
+```
+
+**State Variables:**
+```typescript
+const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+const [isLoading, setIsLoading] = useState(true);
+const [error, setError] = useState('');
+```
+
+**React Hooks:**
+```typescript
+useEffect(() => {
+  const fetchProfile = async () => {
+    try {
+      const response = await API.get('/me');
+      setUserProfile(response.data);
+    } catch (err) {
+      setError('Failed to load profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  fetchProfile();
+}, []);
+
+// Refresh profile after certain actions
+const refreshProfile = useCallback(async () => {
+  try {
+    const response = await API.get('/me');
+    setUserProfile(response.data);
+  } catch (err) {
+    console.error('Failed to refresh profile');
+  }
+}, []);
+```
+
+**Dashboard Widgets to Display:**
+- Subscription plan badge
+- Wardrobe usage (45/200)
+- Daily try-on quota (5/50)
+- Daily recommendations quota (3/20)
+- Monthly saved try-ons quota (25/100)
+- Subscription expiration date
+- Profile photo
+- Account creation date
+
+---
+
+## 2. Update User Profile
+
+### Page Name
+**Profile Edit Page / Settings**
+
+### Purpose
+Update user name and gender preference.
+
+### API Used
+
+**HTTP Method:** `PATCH`
+
+**Endpoint URL:** `PATCH /me`
+
+**Authentication Required:** Yes
+
+**Request Body:**
+```json
+{
+  "name": "Jane Doe",
+  "gender_preference": "female"
+}
+```
+
+**Response (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "profile_photo_url": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+  "gender_preference": "female",
+  ...
+}
+```
+
+**Validation Rules:**
+- name: 2-120 characters (optional)
+- gender_preference: "male", "female", or "other" (optional)
+
+---
+
+## 3. Upload Profile Photo
+
+### Page Name
+**Profile Edit Page**
+
+### Purpose
+Upload or update user profile photo.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /me/photo`
+
+**Authentication Required:** Yes
+
+**Request Body:**
+```
+Form Data:
+- photo: <File> (JPEG, PNG, WebP max 10MB)
+```
+
+**Response (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "profile_photo_url": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+  ...
+}
+```
+
+---
+
+## 4. Update Password
+
+### Page Name
+**Settings → Change Password**
+
+### Purpose
+Allow user to change their account password.
+
+### API Used
+
+**HTTP Method:** `PATCH`
+
+**Endpoint URL:** `PATCH /me/password`
+
+**Authentication Required:** Yes
+
+**Request Body:**
+```json
+{
+  "current_password": "CurrentPass123",
+  "new_password": "NewSecurePass456",
+  "confirm_new_password": "NewSecurePass456"
+}
+```
+
+**Response (Success 200):**
+```json
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+```
+
+**Validation Rules:**
+- current_password: min 6 chars (must match current password)
+- new_password: min 6, max 128 characters (must be different from current)
+- confirm_new_password: must match new_password
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Incorrect current password | Check current password |
+| 400 | Passwords do not match | Ensure new passwords match |
+
+---
+
+# Wardrobe Management Module
+
+## 1. Upload Wardrobe Item
+
+### Page Name
+**Wardrobe → Add Item**
+
+### Purpose
+Users upload clothing items (tops/bottoms) to their digital wardrobe for try-on and recommendations.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /wardrobe/items`
+
+**Authentication Required:** Yes (Must be fully registered)
+
+**Required Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+**Request Body:**
+```
+Form Data:
+- type: "top" | "bottom" (required)
+- file: <File> (JPEG, PNG, WebP max 10MB)
+```
+
+**Response JSON Example (Success 201):**
+```json
+{
+  "id": "507f1f77bcf86cd799439012",
+  "user_id": "507f1f77bcf86cd799439011",
+  "type": "top",
+  "delete_status": "active",
+  "active_status": "active",
+  "image_url": "http://localhost:8000/media/wardrobe/507f1f77bcf86cd799439011/top_1.jpg",
+  "occasion": null,
+  "embedding_done": true,
+  "embedding_error": null,
+  "embedding_updated_at": "2026-05-10T14:22:00Z",
+  "wardrobe_limit": 50,
+  "wardrobe_used": 1,
+  "wardrobe_remaining": 49,
+  "created_at": "2026-05-10T14:22:00Z"
+}
+```
+
+**Response JSON Example (Failure 400):**
+```json
+{
+  "detail": "Wardrobe limit reached"
+}
+```
+
+**Validation Rules:**
+- type: Must be exactly "top" or "bottom"
+- file: JPEG, PNG, or WebP
+- file: max 10MB
+- User must not exceed wardrobe limit
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Invalid item type | Choose top or bottom |
+| 400 | File too large | Upload under 10MB |
+| 400 | Wardrobe limit reached | Upgrade subscription or delete items |
+| 403 | Not fully registered | Complete registration step 2 |
+
+**File Upload Requirements:**
+```typescript
+const uploadWardrobeItem = async (type: 'top' | 'bottom', file: File) => {
+  const validation = validateFile(file);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+  
+  const formData = new FormData();
+  formData.append('type', type);
+  formData.append('file', file);
+  
+  return API.post('/wardrobe/items', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event) => {
+      const progress = (event.loaded / event.total) * 100;
+      console.log(`Upload progress: ${progress}%`);
+    },
+  });
+};
+```
+
+**State Variables Needed:**
+```typescript
+const [wardrobeItems, setWardrobeItems] = useState<WardrobeItem[]>([]);
+const [selectedType, setSelectedType] = useState<'top' | 'bottom' | null>(null);
+const [uploadFile, setUploadFile] = useState<File | null>(null);
+const [uploadProgress, setUploadProgress] = useState(0);
+const [isUploading, setIsUploading] = useState(false);
+const [uploadError, setUploadError] = useState('');
+const [quotaInfo, setQuotaInfo] = useState({
+  limit: 50,
+  used: 0,
+  remaining: 50,
+});
+```
+
+---
+
+## 2. List Wardrobe Items
+
+### Page Name
+**Wardrobe Dashboard**
+
+### Purpose
+Fetch all wardrobe items for the current user with optional filtering.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /wardrobe/items?include_inactive=true`
+
+**Authentication Required:** Yes (Must be fully registered)
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| include_inactive | boolean | true | Include inactive items in response |
+
+**Response JSON Example (Success 200):**
+```json
+[
+  {
+    "id": "507f1f77bcf86cd799439012",
+    "user_id": "507f1f77bcf86cd799439011",
+    "type": "top",
+    "delete_status": "active",
+    "active_status": "active",
+    "image_url": "http://localhost:8000/media/wardrobe/507f1f77bcf86cd799439011/top_1.jpg",
+    "occasion": null,
+    "embedding_done": true,
+    "embedding_error": null,
+    "embedding_updated_at": "2026-05-10T14:22:00Z",
+    "created_at": "2026-05-10T14:22:00Z"
+  },
+  {
+    "id": "507f1f77bcf86cd799439013",
+    "user_id": "507f1f77bcf86cd799439011",
+    "type": "bottom",
+    "delete_status": "active",
+    "active_status": "active",
+    "image_url": "http://localhost:8000/media/wardrobe/507f1f77bcf86cd799439011/bottom_1.jpg",
+    "occasion": null,
+    "embedding_done": true,
+    "embedding_error": null,
+    "embedding_updated_at": "2026-05-10T14:25:00Z",
+    "created_at": "2026-05-10T14:25:00Z"
+  }
+]
+```
+
+**Pagination Support:** Not implemented (returns all items)
+
+**State Variables:**
+```typescript
+const [wardrobeItems, setWardrobeItems] = useState<WardrobeItem[]>([]);
+const [filteredItems, setFilteredItems] = useState<WardrobeItem[]>([]);
+const [filterType, setFilterType] = useState<'all' | 'top' | 'bottom'>('all');
+const [searchQuery, setSearchQuery] = useState('');
+const [isLoading, setIsLoading] = useState(true);
+```
+
+**React Hooks:**
+```typescript
+useEffect(() => {
+  const fetchWardrobe = async () => {
+    try {
+      const response = await API.get('/wardrobe/items', {
+        params: { include_inactive: false }
+      });
+      setWardrobeItems(response.data);
+    } catch (err) {
+      console.error('Failed to load wardrobe');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  fetchWardrobe();
+}, []);
+
+useEffect(() => {
+  let filtered = wardrobeItems;
+  
+  if (filterType !== 'all') {
+    filtered = filtered.filter(item => item.type === filterType);
+  }
+  
+  if (searchQuery) {
+    filtered = filtered.filter(item => 
+      item.occasion?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
+  
+  setFilteredItems(filtered);
+}, [wardrobeItems, filterType, searchQuery]);
+```
+
+---
+
+## 3. Update Wardrobe Item Status
+
+### Page Name
+**Wardrobe Dashboard (Item Context Menu)**
+
+### Purpose
+Deactivate/reactivate wardrobe items without deleting them.
+
+### API Used
+
+**HTTP Method:** `PATCH`
+
+**Endpoint URL:** `PATCH /wardrobe/items/{item_id}/status`
+
+**Authentication Required:** Yes
+
+**URL Parameters:**
+| Parameter | Type | Description |
+|---|---|---|
+| item_id | string | MongoDB ObjectId of the wardrobe item |
+
+**Request Body:**
+```json
+{
+  "active_status": "active"
+}
+```
+
+**Response (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439012",
+  "user_id": "507f1f77bcf86cd799439011",
+  "type": "top",
+  "delete_status": "active",
+  "active_status": "active",
+  "image_url": "http://localhost:8000/media/wardrobe/507f1f77bcf86cd799439011/top_1.jpg",
+  ...
+}
+```
+
+**Validation Rules:**
+- active_status: Must be "active" or "inactive"
+
+---
+
+## 4. Delete Wardrobe Item
+
+### Page Name
+**Wardrobe Dashboard (Item Context Menu)**
+
+### Purpose
+Permanently delete a wardrobe item.
+
+### API Used
+
+**HTTP Method:** `DELETE`
+
+**Endpoint URL:** `DELETE /wardrobe/items/{item_id}`
+
+**Authentication Required:** Yes
+
+**URL Parameters:**
+| Parameter | Type | Description |
+|---|---|---|
+| item_id | string | MongoDB ObjectId of the wardrobe item |
+
+**Response (Success 204):**
+```
+No content
+```
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 404 | Wardrobe item not found | Item already deleted |
+
+---
+
+## 5. Sync Wardrobe Embeddings
+
+### Page Name
+**Wardrobe Dashboard (Settings)**
+
+### Purpose
+Manually trigger embedding generation for all wardrobe items (for recommendations engine).
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /wardrobe/embeddings/sync`
+
+**Authentication Required:** Yes
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "processed": 5,
+  "created": 3,
+  "existing": 2,
+  "failed": 0,
+  "failures": []
+}
+```
+
+**Response JSON Example (Partial Failure):**
+```json
+{
+  "processed": 5,
+  "created": 3,
+  "existing": 1,
+  "failed": 1,
+  "failures": ["507f1f77bcf86cd799439012: Invalid image format"]
+}
+```
+
+---
+
+# Virtual Try-On Module
+
+## 1. Create Try-On Job
+
+### Page Name
+**Try-On Page**
+
+### Purpose
+Initiate AI-powered virtual try-on by uploading top garment and optionally user photo override.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /tryon`
+
+**Authentication Required:** Yes (Must be fully registered)
+
+**Required Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+```
+
+**Request Body:**
+```
+Form Data:
+- top_item_id: "507f1f77bcf86cd799439012" (required)
+- override_photo: <File> (optional, JPEG/PNG/WebP max 10MB)
+- garment_photo_type: "flat-lay" | "on-model" (optional, default: flat-lay)
+```
+
+**Response JSON Example (Success 201):**
+```json
+{
+  "id": "507f1f77bcf86cd799439014",
+  "user_id": "507f1f77bcf86cd799439011",
+  "top_item_id": "507f1f77bcf86cd799439012",
+  "user_photo_path": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+  "input_photo_used": "profile",
+  "output_url": "http://localhost:8000/media/tryon/507f1f77bcf86cd799439011/507f1f77bcf86cd799439014.jpg",
+  "status": "completed",
+  "error_message": null,
+  "is_saved": false,
+  "remaining_tryons_today": 4,
+  "created_at": "2026-05-10T14:30:00Z"
+}
+```
+
+**Response JSON Example (Processing Status):**
+```json
+{
+  "id": "507f1f77bcf86cd799439014",
+  "user_id": "507f1f77bcf86cd799439011",
+  "top_item_id": "507f1f77bcf86cd799439012",
+  "user_photo_path": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+  "input_photo_used": "profile",
+  "output_url": null,
+  "status": "processing",
+  "error_message": null,
+  "is_saved": false,
+  "remaining_tryons_today": 4,
+  "created_at": "2026-05-10T14:30:00Z"
+}
+```
+
+**AI Processing Flow:**
+```typescript
+const createTryOn = async (topItemId: string, overridePhoto?: File) => {
+  const formData = new FormData();
+  formData.append('top_item_id', topItemId);
+  if (overridePhoto) {
+    formData.append('override_photo', overridePhoto);
+  }
+  formData.append('garment_photo_type', 'flat-lay');
+  
+  try {
+    const response = await API.post('/tryon', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 400) {
+      throw new Error(err.response.data.detail);
+    }
+    throw err;
+  }
+};
+
+// Polling mechanism for job completion
+const pollTryOnStatus = async (jobId: string, maxWait = 300000) => {
+  const pollInterval = 2000; // 2 seconds
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWait) {
+    try {
+      const response = await API.get(`/tryon/history`);
+      const job = response.data.find(j => j.id === jobId);
+      
+      if (job?.status === 'completed') {
+        return job;
+      } else if (job?.status === 'failed') {
+        throw new Error(job.error_message);
+      }
+    } catch (err) {
+      console.error('Polling error:', err);
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+  
+  throw new Error('Try-on processing timeout');
+};
+```
+
+**Validation Rules:**
+- top_item_id: Must exist and belong to user
+- top_item type: Must be "top" only (not "bottom")
+- override_photo: Must be valid image file (optional)
+- User must not exceed daily try-on limit
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Daily try-on limit reached | Upgrade subscription or wait until tomorrow |
+| 400 | Wardrobe item not found | Select valid wardrobe item |
+| 400 | Only top items can be used | Must use a top item |
+| 400 | Valid user photo required | Upload profile photo or provide override |
+| 403 | Not fully registered | Complete registration step 2 |
+| 500 | Try-on failed | Check logs, try again |
+
+**State Variables:**
+```typescript
+const [tryOnJob, setTryOnJob] = useState<TryOnJob | null>(null);
+const [selectedTopItemId, setSelectedTopItemId] = useState('');
+const [overridePhoto, setOverridePhoto] = useState<File | null>(null);
+const [overridePhotoPreview, setOverridePhotoPreview] = useState('');
+const [isProcessing, setIsProcessing] = useState(false);
+const [processingProgress, setProcessingProgress] = useState(0);
+const [tryOnResult, setTryOnResult] = useState<string | null>(null);
+const [error, setError] = useState('');
+const [remainingTryons, setRemainingTryons] = useState(5);
+```
+
+**React Hooks:**
+```typescript
+const handleCreateTryOn = async () => {
+  if (!selectedTopItemId) {
+    setError('Please select a wardrobe item');
+    return;
+  }
+  
+  setIsProcessing(true);
+  setProcessingProgress(0);
+  
+  try {
+    // Simulate progress (real progress would come from server)
+    const progressInterval = setInterval(() => {
+      setProcessingProgress(prev => Math.min(prev + 10, 90));
+    }, 500);
+    
+    const response = await createTryOn(selectedTopItemId, overridePhoto);
+    clearInterval(progressInterval);
+    
+    // Poll for completion if status is processing
+    if (response.status === 'processing') {
+      const completedJob = await pollTryOnStatus(response.id);
+      setTryOnJob(completedJob);
+      setTryOnResult(completedJob.output_url);
+      setProcessingProgress(100);
+    } else {
+      setTryOnJob(response);
+      setTryOnResult(response.output_url);
+      setProcessingProgress(100);
+    }
+    
+    setRemainingTryons(response.remaining_tryons_today);
+  } catch (err) {
+    setError(err.message || 'Try-on failed');
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+// Auto-refresh profile to update quotas
+useEffect(() => {
+  if (tryOnJob?.status === 'completed') {
+    refreshProfile();
+  }
+}, [tryOnJob?.status]);
+```
+
+**Loading States:**
+- Processing spinner with progress indicator (0-100%)
+- "Generating your try-on... (X%)" message
+- Disabled buttons during processing
+- Estimated time display
+
+**Before & After Comparison:**
+```typescript
+const SliderComparison = ({ beforeUrl, afterUrl }) => {
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  return (
+    <div className="relative overflow-hidden">
+      <img src={beforeUrl} alt="Before" />
+      <div 
+        style={{ width: `${sliderPosition}%` }}
+        className="absolute top-0 left-0 overflow-hidden"
+      >
+        <img src={afterUrl} alt="After" />
+      </div>
+      <div
+        className="absolute top-0 w-1 h-full bg-white cursor-col-resize"
+        style={{ left: `${sliderPosition}%` }}
+        onMouseDown={() => setIsDragging(true)}
+      />
+    </div>
+  );
+};
+```
+
+---
+
+## 2. Get Try-On History
+
+### Page Name
+**Try-On History / Past Results**
+
+### Purpose
+Fetch all saved try-on results for the current user.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /tryon/history`
+
+**Authentication Required:** Yes
+
+**Response JSON Example (Success 200):**
+```json
+[
+  {
+    "id": "507f1f77bcf86cd799439014",
+    "user_id": "507f1f77bcf86cd799439011",
+    "top_item_id": "507f1f77bcf86cd799439012",
+    "user_photo_path": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+    "input_photo_used": "profile",
+    "output_url": "http://localhost:8000/media/tryon/507f1f77bcf86cd799439011/507f1f77bcf86cd799439014.jpg",
+    "status": "completed",
+    "error_message": null,
+    "is_saved": true,
+    "created_at": "2026-05-10T14:30:00Z"
+  },
+  {
+    "id": "507f1f77bcf86cd799439015",
+    "user_id": "507f1f77bcf86cd799439011",
+    "top_item_id": "507f1f77bcf86cd799439013",
+    "user_photo_path": "http://localhost:8000/media/users/507f1f77bcf86cd799439011/profile.jpg",
+    "input_photo_used": "override",
+    "output_url": "http://localhost:8000/media/tryon/507f1f77bcf86cd799439011/507f1f77bcf86cd799439015.jpg",
+    "status": "completed",
+    "error_message": null,
+    "is_saved": true,
+    "created_at": "2026-05-10T13:15:00Z"
+  }
+]
+```
+
+**Pagination/Search/Filter Support:**
+- Filter by is_saved: true (only show saved results)
+- Sort by created_at: descending (newest first)
+- No pagination implemented (returns all)
+
+---
+
+# Recommendation Engine Module
+
+## 1. Get Outfit Recommendations
+
+### Page Name
+**Recommendation Page / Outfit Suggestion**
+
+### Purpose
+Get AI-recommended top items based on a selected bottom garment and optional occasion.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /recommend`
+
+**Authentication Required:** Yes (Must be fully registered)
+
+**Required Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "bottom_item_id": "507f1f77bcf86cd799439013",
+  "occasion": "casual",
+  "suggestion_count": 5
+}
+```
+
+**Response JSON Example (Success 201):**
+```json
+{
+  "recommendation_id": "507f1f77bcf86cd799439016",
+  "subscription_plan": "premium",
+  "remaining_recommendations_today": 17,
+  "results": [
+    {
+      "top_item_id": "507f1f77bcf86cd799439012",
+      "score": 0.95,
+      "top_item": {
+        "id": "507f1f77bcf86cd799439012",
+        "user_id": "507f1f77bcf86cd799439011",
+        "type": "top",
+        "delete_status": "active",
+        "active_status": "active",
+        "image_url": "http://localhost:8000/media/wardrobe/507f1f77bcf86cd799439011/top_1.jpg",
+        "occasion": null,
+        "embedding_done": true,
+        "embedding_error": null,
+        "embedding_updated_at": "2026-05-10T14:22:00Z",
+        "created_at": "2026-05-10T14:22:00Z"
+      }
+    },
+    {
+      "top_item_id": "507f1f77bcf86cd799439020",
+      "score": 0.87,
+      "top_item": { ... }
+    },
+    ...
+  ]
+}
+```
+
+**Validation Rules:**
+- bottom_item_id: Must exist and belong to user, type must be "bottom"
+- occasion: Optional, normalized to lowercase
+- suggestion_count: 1-10 (default 5)
+- User must have at least one top item in wardrobe
+- User must not exceed daily recommendation limit
+
+**Error Responses:**
+| Code | Error | Solution |
+|---|---|---|
+| 400 | Daily recommendation limit reached | Upgrade subscription or wait until tomorrow |
+| 400 | Bottom item not found | Select valid bottom item |
+| 400 | Only bottom items allowed | Must use a bottom item |
+| 400 | Upload at least one top item | Add tops to wardrobe first |
+| 403 | Not fully registered | Complete registration |
+
+**State Variables:**
+```typescript
+const [selectedBottomId, setSelectedBottomId] = useState('');
+const [occasion, setOccasion] = useState('');
+const [suggestionCount, setSuggestionCount] = useState(5);
+const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+const [isLoading, setIsLoading] = useState(false);
+const [remainingRecommendations, setRemainingRecommendations] = useState(20);
+```
+
+**Occasion Options:**
+```typescript
+const OCCASION_OPTIONS = [
+  'casual',
+  'formal',
+  'office',
+  'party',
+  'sports',
+  'beach',
+  'outdoor',
+  'date',
+  'business',
+  'semi-formal',
+  'evening'
+];
+```
+
+---
+
+## 2. Get Recommendation History
+
+### Page Name
+**Recommendation History**
+
+### Purpose
+Fetch all past recommendations for the user.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /recommend/history`
+
+**Authentication Required:** Yes
+
+**Response JSON Example (Success 200):**
+```json
+[
+  {
+    "id": "507f1f77bcf86cd799439016",
+    "user_id": "507f1f77bcf86cd799439011",
+    "bottom_item_id": "507f1f77bcf86cd799439013",
+    "occasion": "casual",
+    "suggested_top_ids": [
+      "507f1f77bcf86cd799439012",
+      "507f1f77bcf86cd799439020",
+      "507f1f77bcf86cd799439021"
+    ],
+    "created_at": "2026-05-10T14:40:00Z"
+  }
+]
+```
+
+---
+
+# Subscription & Payments Module
+
+## 1. List Subscription Plans
+
+### Page Name
+**Subscription Plans Page / Pricing**
+
+### Purpose
+Display all available subscription plans to the user.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /plans`
+
+**Authentication Required:** No
+
+**Response JSON Example (Success 200):**
+```json
+[
+  {
+    "code": "free",
+    "name": "Free Plan",
+    "description": "Get started with fashion AI",
+    "price_inr": 0.0,
+    "wardrobe_limit": 50,
+    "tryon_daily_limit": 5,
+    "recommendation_daily_limit": 3,
+    "saved_tryon_monthly_limit": 0,
+    "is_default": true,
+    "active": true
+  },
+  {
+    "code": "premium",
+    "name": "Premium Plan",
+    "description": "Full access to all features",
+    "price_inr": 499.0,
+    "wardrobe_limit": 200,
+    "tryon_daily_limit": 50,
+    "recommendation_daily_limit": 20,
+    "saved_tryon_monthly_limit": 100,
+    "is_default": false,
+    "active": true
+  },
+  {
+    "code": "pro",
+    "name": "Pro Plan",
+    "description": "Unlimited everything",
+    "price_inr": 999.0,
+    "wardrobe_limit": 1000,
+    "tryon_daily_limit": 500,
+    "recommendation_daily_limit": 200,
+    "saved_tryon_monthly_limit": 500,
+    "is_default": false,
+    "active": true
+  }
+]
+```
+
+---
+
+## 2. Purchase Subscription Plan
+
+### Page Name
+**Checkout / Payment Page**
+
+### Purpose
+User initiates subscription purchase by selecting a plan.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /me/subscription/{plan_code}`
+
+**Authentication Required:** Yes
+
+**URL Parameters:**
+| Parameter | Type | Description |
+|---|---|---|
+| plan_code | string | Subscription plan code (e.g., "premium") |
+
+**Response (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "subscription_plan": "premium",
+  "wardrobe_limit": 200,
+  "wardrobe_used": 45,
+  "wardrobe_remaining": 155,
+  "tryon_daily_limit": 50,
+  "tryons_used_today": 5,
+  "remaining_tryons_today": 45,
+  "recommendation_daily_limit": 20,
+  "recommendations_used_today": 3,
+  "remaining_recommendations_today": 17,
+  "saved_tryon_monthly_limit": 100,
+  "saved_tryons_used_this_month": 25,
+  "remaining_saved_tryons_this_month": 75,
+  "subscription_started_at": "2026-05-10T10:30:00Z",
+  "subscription_cycle_start": "2026-05-10T10:30:00Z",
+  "subscription_cycle_end": "2026-06-10T10:30:00Z",
+  "subscription_expires_at": "2026-06-10T10:30:00Z",
+  "is_subscription_expired": false
+}
+```
+
+---
+
+## 3. Create Razorpay Payment Order
+
+### Page Name
+**Payment Gateway (Step 1)**
+
+### Purpose
+Initialize Razorpay payment by creating an order.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /payments/razorpay/order`
+
+**Authentication Required:** Yes
+
+**Request Body:**
+```json
+{
+  "plan_code": "premium"
+}
+```
+
+**Response JSON Example (Success 200):**
+```json
+{
+  "order_id": "order_IluUgcFfaJ6pPq",
+  "amount_paise": 49900,
+  "currency": "INR",
+  "key_id": "rzp_live_xxxxxxxxxxx",
+  "merchant_name": "FashionAI",
+  "description": "Secure subscription payment for FashionAI plans",
+  "plan_code": "premium",
+  "plan_name": "Premium Plan",
+  "customer_name": "John Doe",
+  "customer_email": "john@example.com"
+}
+```
+
+**Payment Flow (Frontend Implementation):**
+```typescript
+import Razorpay from 'razorpay-checkout';
+
+const handlePayment = async (planCode: string) => {
+  try {
+    // Step 1: Create Razorpay order
+    const orderResponse = await API.post('/payments/razorpay/order', {
+      plan_code: planCode,
+    });
+    
+    const {
+      order_id,
+      amount_paise,
+      key_id,
+      merchant_name,
+      plan_name,
+      customer_name,
+      customer_email,
+    } = orderResponse.data;
+    
+    // Step 2: Open Razorpay checkout
+    const options = {
+      key: key_id,
+      amount: amount_paise,
+      currency: 'INR',
+      name: merchant_name,
+      description: `${plan_name} Subscription`,
+      order_id: order_id,
+      handler: (response) => {
+        // Step 3: Verify payment
+        verifyPayment(planCode, response);
+      },
+      prefill: {
+        name: customer_name,
+        email: customer_email,
+      },
+      theme: {
+        color: '#000000',
+      },
+    };
+    
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+  } catch (err) {
+    console.error('Payment initiation failed:', err);
+  }
+};
+```
+
+---
+
+## 4. Verify Razorpay Payment
+
+### Page Name
+**Payment Confirmation**
+
+### Purpose
+Verify payment success and activate subscription.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /payments/razorpay/verify`
+
+**Authentication Required:** Yes
+
+**Request Body:**
+```json
+{
+  "plan_code": "premium",
+  "razorpay_order_id": "order_IluUgcFfaJ6pPq",
+  "razorpay_payment_id": "pay_IluUgcFfaJ6pPq",
+  "razorpay_signature": "signature_hash"
+}
+```
+
+**Response (Success 200):**
+```json
+{
+  "id": "507f1f77bcf86cd799439011",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "subscription_plan": "premium",
+  "wardrobe_limit": 200,
+  "tryon_daily_limit": 50,
+  "recommendation_daily_limit": 20,
+  "subscription_started_at": "2026-05-10T10:30:00Z",
+  "subscription_cycle_end": "2026-06-10T10:30:00Z",
+  "is_subscription_expired": false
+}
+```
+
+**Verification Implementation:**
+```typescript
+const verifyPayment = async (
+  planCode: string,
+  razorpayResponse: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }
+) => {
+  try {
+    const response = await API.post('/payments/razorpay/verify', {
+      plan_code: planCode,
+      razorpay_order_id: razorpayResponse.razorpay_order_id,
+      razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+      razorpay_signature: razorpayResponse.razorpay_signature,
+    });
+    
+    // Update user profile
+    localStorage.setItem('user', JSON.stringify(response.data));
+    
+    // Show success message
+    showNotification('Subscription activated!', 'success');
+    
+    // Redirect
+    navigate('/dashboard');
+  } catch (err) {
+    showNotification('Payment verification failed', 'error');
+  }
+};
+```
+
+---
+
+# Admin Dashboard Module
+
+## 1. Admin Bootstrap (First-Time Setup)
+
+### Page Name
+**Admin Setup**
+
+### Purpose
+Create the first admin account (one-time setup, requires secret key).
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /admin/bootstrap`
+
+**Authentication Required:** No
+
+**Request Body:**
+```json
+{
+  "email": "admin@fashionai.com",
+  "password": "AdminSecurePass123",
+  "secret": "your_admin_creation_secret",
+  "name": "System Admin"
+}
+```
+
+**Response (Success 201):**
+```json
+{
+  "id": "507f1f77bcf86cd799439050",
+  "name": "System Admin",
+  "email": "admin@fashionai.com",
+  "role": "admin",
+  "is_active": true,
+  "created_at": "2026-05-10T10:00:00Z",
+  "updated_at": "2026-05-10T10:00:00Z"
+}
+```
+
+---
+
+## 2. Admin Login
+
+### Page Name
+**Admin Login**
+
+### Purpose
+Admin authenticates to access admin dashboard.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /admin/login`
+
+**Authentication Required:** No
+
+**Request Body:**
+```json
+{
+  "email": "admin@fashionai.com",
+  "password": "AdminSecurePass123"
+}
+```
+
+**Response (Success 200):**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "admin": {
+    "id": "507f1f77bcf86cd799439050",
+    "name": "System Admin",
+    "email": "admin@fashionai.com",
+    "role": "admin",
+    "is_active": true,
+    "created_at": "2026-05-10T10:00:00Z",
+    "updated_at": "2026-05-10T10:00:00Z"
+  }
+}
+```
+
+---
+
+## 3. Get Admin Overview
+
+### Page Name
+**Admin Dashboard**
+
+### Purpose
+Display admin dashboard statistics and platform metrics.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /admin/overview`
+
+**Authentication Required:** Yes (Admin token)
+
+**Response (Success 200):**
+```json
+{
+  "total_users": 1250,
+  "fully_registered_users": 950,
+  "total_admins": 3,
+  "total_tryons": 45000,
+  "total_recommendations": 32000,
+  "total_saved_tryons": 8000
+}
+```
+
+---
+
+## 4. List Subscription Plans (Admin)
+
+### Page Name
+**Admin → Plans Management**
+
+### Purpose
+Admin view all subscription plans.
+
+### API Used
+
+**HTTP Method:** `GET`
+
+**Endpoint URL:** `GET /admin/plans`
+
+**Authentication Required:** Yes (Admin token)
+
+**Response (Success 200):**
+```json
+[
+  {
+    "code": "free",
+    "name": "Free Plan",
+    "description": "Get started with fashion AI",
+    "price_inr": 0.0,
+    "wardrobe_limit": 50,
+    "tryon_daily_limit": 5,
+    "recommendation_daily_limit": 3,
+    "saved_tryon_monthly_limit": 0,
+    "is_default": true,
+    "active": true
+  },
+  { ... }
+]
+```
+
+---
+
+## 5. Create Subscription Plan (Admin)
+
+### Page Name
+**Admin → Create New Plan**
+
+### Purpose
+Admin creates new subscription plan.
+
+### API Used
+
+**HTTP Method:** `POST`
+
+**Endpoint URL:** `POST /admin/plans`
+
+**Authentication Required:** Yes (Admin token)
+
+**Request Body:**
+```json
+{
+  "code": "elite",
+  "name": "Elite Plan",
+  "description": "Premium features with priority support",
+  "price_inr": 1999.0,
+  "wardrobe_limit": 500,
+  "tryon_daily_limit": 100,
+  "recommendation_daily_limit": 50,
+  "saved_tryon_monthly_limit": 200,
+  "is_default": false,
+  "active": true
+}
+```
+
+**Response (Success 201):**
+```json
+{
+  "code": "elite",
+  "name": "Elite Plan",
+  "description": "Premium features with priority support",
+  "price_inr": 1999.0,
+  "wardrobe_limit": 500,
+  "tryon_daily_limit": 100,
+  "recommendation_daily_limit": 50,
+  "saved_tryon_monthly_limit": 200,
+  "is_default": false,
+  "active": true
+}
+```
+
+---
+
+## 6. Update Subscription Plan (Admin)
+
+### Page Name
+**Admin → Edit Plan**
+
+### Purpose
+Admin updates existing subscription plan.
+
+### API Used
+
+**HTTP Method:** `PUT`
+
+**Endpoint URL:** `PUT /admin/plans/{code}`
+
+**Authentication Required:** Yes (Admin token)
+
+**URL Parameters:**
+| Parameter | Type | Description |
+|---|---|---|
+| code | string | Plan code (e.g., "premium") |
+
+**Request Body:**
+```json
+{
+  "name": "Premium Plan Updated",
+  "price_inr": 599.0,
+  "wardrobe_limit": 250,
+  "tryon_daily_limit": 75,
+  "recommendation_daily_limit": 30
+}
+```
+
+**Response (Success 200):**
+```json
+{
+  "code": "premium",
+  "name": "Premium Plan Updated",
+  "price_inr": 599.0,
+  "wardrobe_limit": 250,
+  "tryon_daily_limit": 75,
+  "recommendation_daily_limit": 30,
+  ...
+}
+```
+
+---
+
+# Complete Flows & Architecture
+
+## Complete Authentication Flow
+
+```mermaid
+graph TD
+    A[User] -->|Visits| B[Registration Page]
+    B -->|1. Enter Email| C[Email Verification]
+    C -->|Send OTP| D[Backend: Check Email]
+    D -->|Email Valid| E[Send OTP via Email]
+    E -->|User Receives OTP| C
+    C -->|Enter OTP| F[Backend: Verify OTP]
+    F -->|Valid OTP| G{Email Verified}
+    G -->|Yes| H[Registration Step 1]
+    H -->|Enter: Name, Password| I[Backend: Create User]
+    I -->|Return Token| J{Token Stored}
+    J -->|Yes| K[Registration Step 2]
+    K -->|Upload Photo + Gender| L[Backend: Update Profile]
+    L -->|is_fully_registered: true| M[Redirect to Dashboard]
+```
+
+## Complete App Flow Diagram
+
+```mermaid
+graph TD
+    Start([User Opens App])
+    Start -->|Not Logged In| Auth{Authenticated?}
+    Auth -->|No| LoginReg[Login / Register]
+    Auth -->|Yes| Dashboard[Dashboard]
+    
+    LoginReg -->|Register| Step1[Step 1: Email Verify]
+    Step1 --> Step2[Step 2: Profile Setup]
+    Step2 --> Dashboard
+    
+    LoginReg -->|Login| Dashboard
+    
+    Dashboard -->|View Profile| Profile[User Profile]
+    Dashboard -->|Manage Wardrobe| Wardrobe[Wardrobe Management]
+    Dashboard -->|Try Clothing| TryOn[Virtual Try-On]
+    Dashboard -->|Get Suggestions| Recommendation[Recommendations]
+    Dashboard -->|Upgrade| Subscription[Subscription Plans]
+    
+    Wardrobe -->|Upload Items| WardrobeUpload[Add Tops/Bottoms]
+    Wardrobe -->|Manage| WardrobeList[View/Edit/Delete]
+    
+    TryOn -->|Select Top| SelectTop[Choose Wardrobe Item]
+    SelectTop -->|Process| AIProcess[AI Generate Try-On]
+    AIProcess -->|Result| TryOnResult[Display Result]
+    
+    Recommendation -->|Select Bottom| SelectBottom[Choose Bottom Item]
+    SelectBottom -->|Get Suggestions| RankTops[AI Rank Tops]
+    RankTops -->|Display| RecResult[Show Recommendations]
+    
+    Subscription -->|Choose Plan| ChoosePlan[Select Subscription]
+    ChoosePlan -->|Pay| Payment[Razorpay Payment]
+    Payment -->|Success| ActivatePlan[Activate Subscription]
+```
+
+## API Dependency Flow
+
+```
+User Registration Flow:
+  ├─ POST /auth/send-otp (Email verification)
+  ├─ POST /auth/verify-otp (Verify OTP)
+  └─ POST /auth/register/step-1 (Create account)
+      └─ POST /auth/register/step-2 (Complete profile)
+          └─ GET /me (Fetch user profile)
+
+Try-On Flow:
+  ├─ GET /wardrobe/items (List user's wardrobe)
+  ├─ POST /tryon (Create try-on job)
+  ├─ [Polling or WebSocket] (Wait for completion)
+  └─ GET /tryon/history (Fetch results)
+
+Recommendation Flow:
+  ├─ GET /wardrobe/items (List wardrobe items)
+  ├─ POST /recommend (Get recommendations)
+  └─ GET /recommend/history (Fetch history)
+
+Subscription Flow:
+  ├─ GET /plans (List plans)
+  ├─ POST /payments/razorpay/order (Create payment order)
+  ├─ [Razorpay Checkout] (User pays)
+  ├─ POST /payments/razorpay/verify (Verify payment)
+  └─ POST /me/subscription/{code} (Activate subscription)
+```
+
+## Token Refresh Flow
+
+```typescript
+// Implement token refresh (if backend supports it)
+API.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Attempt to refresh token (implement on backend)
+        const response = await API.post('/auth/refresh-token');
+        localStorage.setItem('access_token', response.data.access_token);
+        
+        // Retry original request with new token
+        return API(originalRequest);
+      } catch (err) {
+        // Refresh failed, logout user
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+        return Promise.reject(err);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+```
+
+## Upload Handling Flow
+
+```typescript
+// Generic file upload handler
+const uploadFile = async (
+  endpoint: string,
+  formFields: Record<string, string>,
+  file: File,
+  onProgress?: (percent: number) => void
+) => {
+  const formData = new FormData();
+  
+  // Add form fields
+  Object.entries(formFields).forEach(([key, value]) => {
+    formData.append(key, value);
+  });
+  
+  // Add file
+  formData.append('file', file);
+  
+  try {
+    const response = await API.post(endpoint, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round(
+          (progressEvent.loaded * 100) / (progressEvent.total || 1)
+        );
+        onProgress?.(percentCompleted);
+      },
+    });
+    
+    return response.data;
+  } catch (err) {
+    throw new Error(err.response?.data?.detail || 'Upload failed');
+  }
+};
+
+// Usage
+const handleWardrobeUpload = async (file: File, type: 'top' | 'bottom') => {
+  try {
+    const result = await uploadFile(
+      '/wardrobe/items',
+      { type },
+      file,
+      (percent) => console.log(`Upload: ${percent}%`)
+    );
+    console.log('Item uploaded:', result);
+  } catch (err) {
+    console.error(err);
+  }
+};
+```
+
+## AI Processing Flow
+
+```typescript
+// Try-on processing with polling
+const processTryOn = async (topItemId: string, maxWait = 300000) => {
+  const pollInterval = 2000; // 2 seconds
+  const maxAttempts = Math.ceil(maxWait / pollInterval);
+  let attempts = 0;
+  
+  // Create try-on job
+  const jobResponse = await API.post('/tryon', new FormData(), {
+    top_item_id: topItemId,
+  });
+  
+  const jobId = jobResponse.data.id;
+  let status = jobResponse.data.status;
+  
+  // Poll for completion
+  while (status === 'processing' && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    
+    const historyResponse = await API.get('/tryon/history');
+    const job = historyResponse.data.find(j => j.id === jobId);
+    
+    status = job?.status;
+    attempts++;
+    
+    if (status === 'completed') {
+      return job;
+    } else if (status === 'failed') {
+      throw new Error(job?.error_message || 'Processing failed');
+    }
+  }
+  
+  throw new Error('Processing timeout');
+};
+```
+
+---
+
+## Suggested React Folder Structure
+
+```
+src/
+├── components/
+│   ├── auth/
+│   │   ├── LoginForm.tsx
+│   │   ├── RegisterStep1.tsx
+│   │   ├── RegisterStep2.tsx
+│   │   ├── OTPInput.tsx
+│   │   └── PasswordResetFlow.tsx
+│   ├── profile/
+│   │   ├── ProfileCard.tsx
+│   │   ├── ProfileEditForm.tsx
+│   │   ├── PhotoUpload.tsx
+│   │   └── QuotaDisplay.tsx
+│   ├── wardrobe/
+│   │   ├── WardrobeGrid.tsx
+│   │   ├── WardrobeItem.tsx
+│   │   ├── ItemUploadForm.tsx
+│   │   ├── ItemDetails.tsx
+│   │   └── WardrobeFilter.tsx
+│   ├── tryon/
+│   │   ├── TryOnCreator.tsx
+│   │   ├── ProcessingIndicator.tsx
+│   │   ├── BeforeAfterSlider.tsx
+│   │   ├── TryOnHistory.tsx
+│   │   └── TryOnResult.tsx
+│   ├── recommendations/
+│   │   ├── RecommendationList.tsx
+│   │   ├── RecommendationCard.tsx
+│   │   ├── OccasionSelector.tsx
+│   │   └── RecommendationHistory.tsx
+│   ├── subscription/
+│   │   ├── PlanCard.tsx
+│   │   ├── PlansList.tsx
+│   │   ├── PlanComparison.tsx
+│   │   ├── PaymentForm.tsx
+│   │   └── PaymentStatus.tsx
+│   ├── admin/
+│   │   ├── Dashboard.tsx
+│   │   ├── PlanManagement.tsx
+│   │   ├── UserManagement.tsx
+│   │   ├── Analytics.tsx
+│   │   └── AdminLayout.tsx
+│   ├── layout/
+│   │   ├── Header.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── Footer.tsx
+│   │   └── LayoutWrapper.tsx
+│   └── common/
+│       ├── Button.tsx
+│       ├── Modal.tsx
+│       ├── Toast.tsx
+│       ├── LoadingSpinner.tsx
+│       ├── ErrorBoundary.tsx
+│       └── ConfirmDialog.tsx
+├── pages/
+│   ├── Auth/
+│   │   ├── LoginPage.tsx
+│   │   ├── RegisterPage.tsx
+│   │   └── ForgotPasswordPage.tsx
+│   ├── Dashboard/
+│   │   └── DashboardPage.tsx
+│   ├── Wardrobe/
+│   │   ├── WardrobePage.tsx
+│   │   └── WardrobeItemPage.tsx
+│   ├── TryOn/
+│   │   ├── TryOnPage.tsx
+│   │   └── TryOnHistoryPage.tsx
+│   ├── Recommendations/
+│   │   ├── RecommendationPage.tsx
+│   │   └── RecommendationHistoryPage.tsx
+│   ├── Profile/
+│   │   └── ProfilePage.tsx
+│   ├── Subscription/
+│   │   ├── PlansPage.tsx
+│   │   └── CheckoutPage.tsx
+│   ├── Admin/
+│   │   ├── AdminDashboard.tsx
+│   │   └── AdminSettingsPage.tsx
+│   └── ErrorPages/
+│       ├── NotFound.tsx
+│       └── ErrorPage.tsx
+├── context/
+│   ├── AuthContext.tsx
+│   ├── UserContext.tsx
+│   ├── WardrobeContext.tsx
+│   ├── SubscriptionContext.tsx
+│   └── NotificationContext.tsx
+├── hooks/
+│   ├── useAuth.ts
+│   ├── useUser.ts
+│   ├── useWardrobe.ts
+│   ├── useTryOn.ts
+│   ├── useRecommendations.ts
+│   ├── useSubscription.ts
+│   ├── useFetch.ts
+│   └── useForm.ts
+├── services/
+│   ├── api/
+│   │   ├── client.ts
+│   │   ├── auth.ts
+│   │   ├── user.ts
+│   │   ├── wardrobe.ts
+│   │   ├── tryon.ts
+│   │   ├── recommendations.ts
+│   │   ├── payment.ts
+│   │   └── admin.ts
+│   ├── storage/
+│   │   ├── localStorage.ts
+│   │   └── sessionStorage.ts
+│   └── notifications/
+│       └── notificationService.ts
+├── utils/
+│   ├── validation.ts
+│   ├── constants.ts
+│   ├── formatters.ts
+│   ├── dateTime.ts
+│   ├── image.ts
+│   └── errorHandler.ts
+├── types/
+│   ├── auth.ts
+│   ├── user.ts
+│   ├── wardrobe.ts
+│   ├── tryon.ts
+│   ├── recommendation.ts
+│   ├── subscription.ts
+│   └── api.ts
+├── styles/
+│   ├── globals.css
+│   ├── variables.css
+│   └── animations.css
+├── App.tsx
+├── Router.tsx
+└── main.tsx
+```
+
+---
+
+## Suggested Context API Structure
+
+```typescript
+// contexts/AuthContext.tsx
+interface AuthContextType {
+  isAuthenticated: boolean;
+  user: UserProfile | null;
+  admin: AdminProfile | null;
+  token: string | null;
+  kind: 'user' | 'admin' | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  register: (data: RegisterData) => Promise<void>;
+  isLoading: boolean;
+}
+
+// contexts/UserContext.tsx
+interface UserContextType {
+  user: UserProfile | null;
+  updateProfile: (data: UserUpdateRequest) => Promise<void>;
+  updatePassword: (data: PasswordChangeRequest) => Promise<void>;
+  uploadPhoto: (file: File) => Promise<void>;
+  refreshUser: () => Promise<void>;
+  isLoading: boolean;
+}
+
+// contexts/WardrobeContext.tsx
+interface WardrobeContextType {
+  items: WardrobeItem[];
+  filteredItems: WardrobeItem[];
+  uploadItem: (type: 'top' | 'bottom', file: File) => Promise<void>;
+  deleteItem: (itemId: string) => Promise<void>;
+  updateItemStatus: (itemId: string, status: 'active' | 'inactive') => Promise<void>;
+  syncEmbeddings: () => Promise<void>;
+  filterItems: (type?: 'top' | 'bottom', searchQuery?: string) => void;
+  isLoading: boolean;
+}
+
+// contexts/SubscriptionContext.tsx
+interface SubscriptionContextType {
+  plans: SubscriptionPlan[];
+  currentPlan: SubscriptionPlan | null;
+  purchasePlan: (planCode: string) => Promise<void>;
+  createPaymentOrder: (planCode: string) => Promise<OrderResponse>;
+  verifyPayment: (paymentData: PaymentVerificationData) => Promise<void>;
+  isLoading: boolean;
+}
+
+// contexts/NotificationContext.tsx
+interface NotificationContextType {
+  notifications: Notification[];
+  showNotification: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+  removeNotification: (id: string) => void;
+}
+```
+
+---
+
+## Suggested Frontend Routing Structure
+
+```typescript
+// Router.tsx
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminRoute from '@/components/AdminRoute';
+
+export function AppRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        
+        {/* Auth Routes (requires step 1 only) */}
+        <Route element={<ProtectedRoute requiredFull={false} />}>
+          <Route path="/register/step-2" element={<RegisterStep2Page />} />
+        </Route>
+        
+        {/* Protected Routes (requires full registration) */}
+        <Route element={<ProtectedRoute requiredFull={true} />}>
+          <Route path="/" element={<LayoutWrapper />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="wardrobe" element={<WardrobePage />} />
+            <Route path="wardrobe/:itemId" element={<WardrobeItemPage />} />
+            <Route path="try-on" element={<TryOnPage />} />
+            <Route path="try-on/history" element={<TryOnHistoryPage />} />
+            <Route path="recommendations" element={<RecommendationPage />} />
+            <Route path="recommendations/history" element={<RecommendationHistoryPage />} />
+            <Route path="subscription" element={<PlansPage />} />
+            <Route path="checkout/:planCode" element={<CheckoutPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Route>
+        
+        {/* Admin Routes */}
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="plans" element={<AdminPlansPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="analytics" element={<AdminAnalyticsPage />} />
+          </Route>
+        </Route>
+        
+        {/* Error Routes */}
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+// ProtectedRoute.tsx
+interface ProtectedRouteProps {
+  requiredFull?: boolean; // Require full registration
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ requiredFull = true }) => {
+  const { isAuthenticated, user } = useAuth();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (requiredFull && !user?.is_fully_registered) {
+    return <Navigate to="/register/step-2" replace />;
+  }
+  
+  return <Outlet />;
+};
+```
+
+---
+
+## Recommended Reusable Components
+
+```typescript
+// Reusable Form Components
+<TextInput
+  label="Full Name"
+  value={name}
+  onChange={setName}
+  error={errors.name}
+  required
+/>
+
+<PasswordInput
+  label="Password"
+  value={password}
+  onChange={setPassword}
+  showStrength
+  error={errors.password}
+/>
+
+<FileUpload
+  accept="image/*"
+  maxSize={10 * 1024 * 1024}
+  onSelect={handleFileSelect}
+  preview
+/>
+
+<OTPInput
+  length={6}
+  value={otp}
+  onChange={setOtp}
+  error={otpError}
+/>
+
+// Reusable Display Components
+<QuotaBar
+  used={45}
+  total={200}
+  label="Wardrobe Items"
+/>
+
+<SubscriptionBadge
+  plan={userProfile.subscription_plan}
+  expiresAt={userProfile.subscription_expires_at}
+/>
+
+<ImageCard
+  image={wardrobeItem.image_url}
+  title={wardrobeItem.type}
+  onClick={() => viewDetails(wardrobeItem.id)}
+  onDelete={() => deleteItem(wardrobeItem.id)}
+/>
+
+<BeforeAfterSlider
+  beforeImage={original}
+  afterImage={tryOnResult}
+/>
+
+<LoadingState
+  isLoading={isProcessing}
+  progress={processingProgress}
+  message="Generating your try-on..."
+/>
+
+// Reusable Layout Components
+<MainLayout>
+  <Sidebar />
+  <main>
+    <Header />
+    <div className="content">{children}</div>
+  </main>
+</MainLayout>
+```
+
+---
+
+## Environment Variables Needed
+
+```env
+# API Configuration
+VITE_API_BASE_URL=http://localhost:8000
+VITE_API_TIMEOUT=30000
+
+# Auth
+VITE_AUTH_TOKEN_KEY=access_token
+VITE_AUTO_LOGOUT_TIMEOUT=86400000  # 24 hours
+
+# File Upload
+VITE_MAX_IMAGE_SIZE=10485760  # 10MB
+VITE_ALLOWED_IMAGE_TYPES=image/jpeg,image/png,image/webp
+VITE_COMPRESSION_QUALITY=0.8
+
+# Try-On Processing
+VITE_TRYON_POLLING_INTERVAL=2000  # 2 seconds
+VITE_TRYON_MAX_POLLING_TIME=300000  # 5 minutes
+VITE_SHOW_PROCESSING_ETA=true
+
+# Media URLs
+VITE_MEDIA_BASE_URL=http://localhost:8000/media
+VITE_MEDIA_CACHE_TIME=86400000  # 24 hours
+
+# Razorpay
+VITE_RAZORPAY_KEY_ID=your_razorpay_key_id
+VITE_RAZORPAY_TIMEOUT=30000
+
+# Feature Flags
+VITE_ENABLE_TRY_ON=true
+VITE_ENABLE_RECOMMENDATIONS=true
+VITE_ENABLE_PAYMENTS=true
+VITE_ENABLE_ADMIN_PANEL=true
+
+# Analytics
+VITE_ENABLE_ANALYTICS=false
+VITE_ANALYTICS_KEY=
+
+# Environment
+VITE_ENVIRONMENT=development  # development, staging, production
+VITE_LOG_LEVEL=info  # debug, info, warn, error
+```
+
+---
+
+## Error Handling Strategy
+
+```typescript
+// utils/errorHandler.ts
+interface APIError {
+  status: number;
+  message: string;
+  detail?: string;
+  field?: string;
+}
+
+class ErrorHandler {
+  static handle(error: any): APIError {
+    if (error.response?.status === 401) {
+      return {
+        status: 401,
+        message: 'Session expired. Please login again.',
+        detail: 'Unauthorized',
+      };
+    }
+    
+    if (error.response?.status === 403) {
+      return {
+        status: 403,
+        message: 'You do not have permission to access this resource.',
+        detail: error.response.data?.detail,
+      };
+    }
+    
+    if (error.response?.status === 404) {
+      return {
+        status: 404,
+        message: 'Resource not found.',
+        detail: error.response.data?.detail,
+      };
+    }
+    
+    if (error.response?.status === 400) {
+      return {
+        status: 400,
+        message: 'Invalid request.',
+        detail: error.response.data?.detail,
+      };
+    }
+    
+    if (error.response?.status === 500) {
+      return {
+        status: 500,
+        message: 'Server error. Please try again later.',
+        detail: error.response.data?.detail,
+      };
+    }
+    
+    return {
+      status: error.response?.status || 0,
+      message: error.message || 'An error occurred.',
+      detail: error.response?.data?.detail,
+    };
+  }
+}
+
+// Usage
+try {
+  await API.post('/tryon', formData);
+} catch (err) {
+  const apiError = ErrorHandler.handle(err);
+  showNotification(apiError.message, 'error');
+  console.error('API Error:', apiError);
+}
+```
+
+---
+
+## This documentation covers:
+
+✅ **All 7 main API modules** (Auth, Users, Wardrobe, Try-On, Recommendations, Payments, Admin)  
+✅ **26 complete API endpoints** with request/response examples  
+✅ **Authentication & Authorization** flows  
+✅ **Error handling** and validation rules  
+✅ **File upload requirements** and handling  
+✅ **State management** (Context API structure)  
+✅ **React hooks** and component recommendations  
+✅ **Complete workflows** and user flows  
+✅ **Folder structure** for scaling  
+✅ **Environment configuration**  
+✅ **Payment integration** (Razorpay)  
+✅ **AI processing flow** with polling  
+✅ **Token management** and refresh strategy  
+✅ **Recommended components** library
+
+Use this as your production-level frontend API documentation!

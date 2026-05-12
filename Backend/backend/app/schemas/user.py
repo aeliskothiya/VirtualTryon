@@ -10,6 +10,7 @@ class UserProfile(BaseModel):
     email: EmailStr
     profile_photo_url: str | None = None
     gender_preference: str | None = None
+    bio: str | None = None
     subscription_plan: str = "free"
     has_used_free_plan: bool = False
     is_fully_registered: bool
@@ -40,6 +41,7 @@ class UserProfile(BaseModel):
 class UserUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     gender_preference: str | None = None
+    bio: str | None = Field(default=None, max_length=500)
 
 
 class PasswordChangeRequest(BaseModel):

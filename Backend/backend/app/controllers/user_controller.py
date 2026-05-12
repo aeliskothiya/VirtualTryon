@@ -32,9 +32,11 @@ def update_me(payload: UserUpdateRequest, current_user: dict, db: Database) -> d
     if payload.name is not None:
         updates["name"] = payload.name
     if payload.gender_preference is not None:
-        if payload.gender_preference not in {"male", "female", "other"}:
-            raise HTTPException(status_code=400, detail="Gender preference must be male, female, or other")
+        if payload.gender_preference not in {"male", "female", "other", "prefer_not_to_say"}:
+            raise HTTPException(status_code=400, detail="Gender preference must be male, female, other, or prefer_not_to_say")
         updates["gender_preference"] = payload.gender_preference
+    if payload.bio is not None:
+        updates["bio"] = payload.bio
 
     merged_gender = updates.get("gender_preference", current_user.get("gender_preference"))
     updates["is_fully_registered"] = bool(current_user.get("profile_photo_url") and merged_gender)
