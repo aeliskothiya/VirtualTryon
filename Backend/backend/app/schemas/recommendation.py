@@ -9,7 +9,7 @@ from app.schemas.wardrobe import WardrobeItemOut
 class RecommendationRequest(BaseModel):
     bottom_item_id: str
     occasion: Optional[str] = None
-    suggestion_count: int = Field(default=5, ge=1, le=10)
+    suggestion_count: int = Field(default=3, ge=1, le=10)
 
     @validator("occasion")
     def normalize_occasion(cls, value: Optional[str]) -> Optional[str]:

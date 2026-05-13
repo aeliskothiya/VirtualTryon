@@ -11,12 +11,37 @@ export const RecommendationProvider = ({ children }) => {
   const [remainingRecommendations, setRemainingRecommendations] = useState(0);
 
   const fetchRecommendations = useCallback(
-    async (bottomItemId, occasion = '', suggestionCount = 5) => {
+    async (bottomItemId, occasion = '', suggestionCount = 3) => {
       setIsLoading(true);
       setError(null);
       try {
         const response = await recommendationAPI.getRecommendations(
           bottomItemId,
+          occasion,
+          suggestionCount
+        );
+
+        setRecommendations(response.data.results || []);
+        setRemainingRecommendations(response.data.remaining_recommendations_today || 0);
+        return response.data;
+      } catch (err) {
+        const errorMsg = err.response?.data?.detail || 'Failed to fetch recommendations';
+        setError(errorMsg);
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const fetchBottomRecommendations = useCallback(
+    async (topItemId, occasion = '', suggestionCount = 3) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await recommendationAPI.getBottomRecommendations(
+          topItemId,
           occasion,
           suggestionCount
         );
@@ -63,6 +88,7 @@ export const RecommendationProvider = ({ children }) => {
     error,
     remainingRecommendations,
     fetchRecommendations,
+    fetchBottomRecommendations,
     fetchHistory,
     clearRecommendations,
     occasionOptions: recommendationAPI.OCCASION_OPTIONS,

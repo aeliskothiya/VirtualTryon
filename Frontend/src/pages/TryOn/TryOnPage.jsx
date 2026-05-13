@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -13,7 +13,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useTryOn, useWardrobe, useNotification, useUser } from '@/hooks';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useTryOnLock } from '@/contexts/TryOnLockContext';
 import { validateImageFile } from '@/utils/validators';
 import { normalizeImageUrl, onImageLoad, onImageError } from '@/utils/imageLoader';
 import { AnimatedButton } from '@/components/common/MicroInteractions';
@@ -21,15 +22,31 @@ import { useConfettiBlast } from '@/components/common/Confetti';
 
 export default function TryOnPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { createTryOn, currentJob, isProcessing, processingProgress } = useTryOn();
   const { fetchItems, items, getTops, getBottoms, getOnePieces } = useWardrobe();
   const { profile } = useUser();
   const { showSuccess, showError } = useNotification();
-  const { triggerConfetti } = useConfettiBlast();
+  const { trigger: triggerConfetti } = useConfettiBlast();
+  const { startTryOn, updateProgress, completeTryOn } = useTryOnLock();
+
+  const preselectedTryOn = location.state?.garmentId
+    ? {
+        garmentId: location.state.garmentId,
+        garmentType:
+          location.state.garmentType === 'top' ||
+          location.state.garmentType === 'bottom' ||
+          location.state.garmentType === 'one-piece'
+            ? location.state.garmentType
+            : 'top',
+        garmentItem: location.state.garmentItem || null,
+      }
+    : null;
+  const preselectedTryOnRef = useRef(preselectedTryOn);
 
   const [step, setStep] = useState('select');
-  const [garmentType, setGarmentType] = useState('top'); // 'top' or 'bottom'
-  const [selectedGarment, setSelectedGarment] = useState(null);
+  const [garmentType, setGarmentType] = useState(preselectedTryOn?.garmentType || 'top'); // 'top' or 'bottom'
+  const [selectedGarment, setSelectedGarment] = useState(preselectedTryOn?.garmentItem || null);
   const [userPhoto, setUserPhoto] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [garments, setGarments] = useState([]);
@@ -37,6 +54,7 @@ export default function TryOnPage() {
   const [isSliderDragging, setIsSliderDragging] = useState(false);
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [garmentPhotoType, setGarmentPhotoType] = useState('flat-lay');
 
   // Subscription checks
   const isSubscriptionExpired = profile?.is_subscription_expired;
@@ -47,6 +65,7 @@ export default function TryOnPage() {
     fetchItems();
   }, [fetchItems]);
 
+
   // Update garments list based on selected garment type
   useEffect(() => {
     let newGarments = [];
@@ -54,15 +73,42 @@ export default function TryOnPage() {
     else if (garmentType === 'bottom') newGarments = getBottoms();
     else if (garmentType === 'one-piece') newGarments = getOnePieces();
     setGarments(newGarments);
-    setSelectedGarment(null); // Reset selection when changing type
+    const shouldKeepPreselected =
+      preselectedTryOnRef.current &&
+      preselectedTryOnRef.current.garmentType === garmentType;
+    if (!shouldKeepPreselected) {
+      setSelectedGarment(null); // Reset selection when changing type manually
+    }
   }, [items, getTops, getBottoms, getOnePieces, garmentType]);
+
 
   // Trigger confetti when try-on results are ready
   useEffect(() => {
-    if (step === 'results' && currentJob?.result_image_url) {
+    if (step === 'results' && (currentJob?.output_url || currentJob?.result_image_url)) {
+      console.log('[TryOnPage] Results step active, triggering confetti');
       triggerConfetti();
     }
-  }, [step, currentJob?.result_image_url, triggerConfetti]);
+  }, [step, currentJob?.output_url, currentJob?.result_image_url, triggerConfetti]);
+
+  // Keep global overlay progress in sync with try-on context progress.
+  useEffect(() => {
+    if (isProcessing) {
+      updateProgress(processingProgress);
+    }
+  }, [isProcessing, processingProgress, updateProgress]);
+
+  // Monitor job completion and transition to results
+  useEffect(() => {
+    if (currentJob && currentJob.status === 'completed') {
+      console.log('[TryOnPage] Job completed, transitioning to results:', currentJob.id);
+      setStep('results');
+      completeTryOn('Your try-on is ready! Check the results below.');
+    } else if (currentJob && currentJob.status === 'failed') {
+      console.error('[TryOnPage] Job failed:', currentJob.error_message);
+      showError(currentJob.error_message || 'Try-on generation failed');
+      setStep('select');
+    }
+  }, [currentJob, completeTryOn, showError]);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -119,20 +165,15 @@ export default function TryOnPage() {
     }
 
     setStep('process');
+    startTryOn(); // Lock UI globally
     try {
-      await createTryOn(selectedGarment.id, userPhoto);
+      await createTryOn(selectedGarment.id, userPhoto, garmentPhotoType);
       showSuccess('Try-on started!');
     } catch (error) {
       showError(error.message || 'Try-on failed');
       setStep('select');
     }
   };
-
-  useEffect(() => {
-    if (currentJob && currentJob.status === 'completed') {
-      setStep('results');
-    }
-  }, [currentJob]);
 
   const handleImageLoad = (id) => {
     setImageLoadState((prev) => ({
@@ -152,6 +193,12 @@ export default function TryOnPage() {
   const getImageUrl = (item) => {
     return normalizeImageUrl(item.image_url) || '/placeholder-wardrobe.svg';
   };
+
+  const resultImageUrl =
+    normalizeImageUrl(currentJob?.output_url || currentJob?.result_image_url) ||
+    currentJob?.output_url ||
+    currentJob?.result_image_url ||
+    null;
 
   const handleSliderMove = (e) => {
     if (!isSliderDragging) return;
@@ -216,42 +263,31 @@ export default function TryOnPage() {
               transition={{ duration: 0.5 }}
               className="space-y-12"
             >
-              {/* GARMENT TYPE SELECTOR */}
+              {/* FLAT-LAY ONLY NOTE */}
               <section>
                 <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-4">Step 1: Choose What to Try On</h2>
-                  <div className="flex gap-4 flex-wrap">
-                    <button
-                      onClick={() => setGarmentType('top')}
-                      className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                        garmentType === 'top'
-                          ? 'bg-gold-accent text-white'
-                          : 'bg-beige text-charcoal hover:bg-warm-gray'
-                      }`}
-                    >
-                      Try On Tops
-                    </button>
-                    <button
-                      onClick={() => setGarmentType('bottom')}
-                      className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                        garmentType === 'bottom'
-                          ? 'bg-gold-accent text-white'
-                          : 'bg-beige text-charcoal hover:bg-warm-gray'
-                      }`}
-                    >
-                      Try On Bottoms
-                    </button>
-                    <button
-                      onClick={() => setGarmentType('one-piece')}
-                      className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                        garmentType === 'one-piece'
-                          ? 'bg-gold-accent text-white'
-                          : 'bg-beige text-charcoal hover:bg-warm-gray'
-                      }`}
-                    >
-                      Try On One-Pieces
-                    </button>
-                  </div>
+                  <h2 className="text-2xl font-bold text-charcoal mb-2">Step 1: Prepare Your Photo</h2>
+                  <p className="text-warm-taupe">We use flat-lay garment photos for precise virtual try-on. Upload a clear photo of yourself.</p>
+                  {preselectedTryOnRef.current && (
+                    <p className="mt-4 text-sm text-gold-accent font-medium">
+                      ✓ Garment selected. Upload your photo to continue.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {/* PHOTO-TYPE SELECTOR (Flat-lay / On-model) */}
+              <section>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-charcoal mb-2">Photo Type</label>
+                  <select
+                    value={garmentPhotoType}
+                    onChange={(e) => setGarmentPhotoType(e.target.value)}
+                    className="p-2 border rounded-lg bg-ivory"
+                  >
+                    <option value="flat-lay">Flat-lay (recommended)</option>
+                    <option value="on-model">On-model</option>
+                  </select>
                 </div>
               </section>
 
@@ -259,9 +295,9 @@ export default function TryOnPage() {
               <section>
                 <div className="mb-8">
                   <h2 className="text-2xl font-bold text-charcoal mb-2">
-                    Step 2: Select a {garmentType === 'top' ? 'Top' : garmentType === 'bottom' ? 'Bottom' : 'One-Piece'}
+                    Step 2: Select Your Flat-Lay Item
                   </h2>
-                  <p className="text-warm-taupe">Choose an item from your wardrobe to virtually try on</p>
+                  <p className="text-warm-taupe">Choose a garment from your wardrobe</p>
                 </div>
 
                 {garments.length === 0 ? (
@@ -272,7 +308,7 @@ export default function TryOnPage() {
                   >
                     <ImageOff size={48} className="mx-auto text-warm-gray mb-4" />
                     <h3 className="text-xl font-bold text-charcoal mb-2">
-                      No {garmentType === 'top' ? 'tops' : garmentType === 'bottom' ? 'bottoms' : 'one-pieces'} yet
+                      No garments yet
                     </h3>
                     <p className="text-warm-taupe mb-6">
                       Build your wardrobe first to start trying on
@@ -562,7 +598,7 @@ export default function TryOnPage() {
                       className="absolute inset-0 overflow-hidden transition-all"
                       style={{ width: `${sliderPosition}%` }}
                     >
-                      {currentJob.result_image_url && imageLoadState['result'] !== 'error' ? (
+                      {resultImageUrl && imageLoadState['result'] !== 'error' ? (
                         <>
                           {imageLoadState['result'] !== 'loaded' && (
                             <motion.div
@@ -571,14 +607,14 @@ export default function TryOnPage() {
                             />
                           )}
                           <img
-                            src={normalizeImageUrl(currentJob.result_image_url) || currentJob.result_image_url}
+                            src={resultImageUrl}
                             alt="After"
                             className="w-screen h-full object-cover"
                             onLoad={() => handleImageLoad('result')}
-                            onError={() => handleImageError('result', currentJob.result_image_url)}
+                            onError={() => handleImageError('result', resultImageUrl)}
                           />
                         </>
-                      ) : currentJob.result_image_url ? (
+                      ) : resultImageUrl ? (
                         <div className="absolute inset-0 flex items-center justify-center bg-beige">
                           <div className="text-center">
                             <ImageOff size={32} className="text-warm-gray mx-auto mb-2" />
@@ -702,3 +738,5 @@ export default function TryOnPage() {
     </div>
   );
 }
+
+

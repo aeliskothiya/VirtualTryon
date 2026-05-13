@@ -198,4 +198,37 @@ def rank_tops_for_bottom(
     ranked.sort(key=lambda item: item[1], reverse=True)
     return ranked[:limit]
 
-__all__ = ["rank_tops_for_bottom", "score_top_for_bottom"]
+
+def rank_bottoms_for_top(
+    db: Database,
+    user_id: str,
+    top_item: dict,
+    occasion: Optional[str],
+    limit: int = 5,
+) -> list[tuple[dict, float]]:
+    """Rank bottoms for a given top item using embeddings and occasion scoring."""
+    bottoms = list(
+        db.wardrobe_items.find(
+            {
+                "user_id": user_id,
+                "type": "bottom",
+                "delete_status": {"$ne": "inactive"},
+                "active_status": "active",
+                "_id": {"$ne": top_item["_id"]},
+            }
+        ).sort("created_at", -1)
+    )
+
+    top_vector = _get_item_embedding(user_id=user_id, item=top_item, db=db)
+
+    ranked = []
+    for bottom in bottoms:
+        bottom_vector = _get_item_embedding(user_id=user_id, item=bottom, db=db)
+        # Use symmetric scoring function: treat the candidate (bottom) as the "top" argument
+        # so the scoring logic (occasion/style) applies to the candidate item correctly.
+        ranked.append((bottom, score_top_for_bottom(bottom, top_item, occasion, bottom_vector, top_vector)))
+
+    ranked.sort(key=lambda item: item[1], reverse=True)
+    return ranked[:limit]
+
+__all__ = ["rank_tops_for_bottom", "rank_bottoms_for_top", "score_top_for_bottom"]

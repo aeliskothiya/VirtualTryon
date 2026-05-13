@@ -4,6 +4,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { UserProvider } from '@/contexts/UserContext';
 import { WardrobeProvider } from '@/contexts/WardrobeContext';
 import { TryOnProvider } from '@/contexts/TryOnContext';
+import { TryOnLockProvider } from '@/contexts/TryOnLockContext';
 import { RecommendationProvider } from '@/contexts/RecommendationContext';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { AdminProvider } from '@/contexts/AdminContext';
@@ -13,6 +14,7 @@ import '@/styles/globals.css';
 // Layout components (to be built)
 import ProtectedRoute from '@/components/ProtectedRoute';
 import NotificationContainer from '@/components/NotificationContainer';
+import TryOnLockOverlay from '@/components/TryOnLockOverlay';
 import { AnimatedPage } from '@/components/common/AnimatedPage';
 
 // Pages (to be built)
@@ -167,16 +169,19 @@ function App() {
         <UserProvider>
           <WardrobeProvider>
             <TryOnProvider>
-              <RecommendationProvider>
-                <SubscriptionProvider>
-                  <AdminProvider>
-                    <Router>
-                      <NotificationContainer />
-                      <AppContent />
-                    </Router>
-                  </AdminProvider>
-                </SubscriptionProvider>
-              </RecommendationProvider>
+              <TryOnLockProvider>
+                <RecommendationProvider>
+                  <SubscriptionProvider>
+                    <AdminProvider>
+                      <Router>
+                        <NotificationContainer />
+                        <TryOnLockOverlay />
+                        <AppContent />
+                      </Router>
+                    </AdminProvider>
+                  </SubscriptionProvider>
+                </RecommendationProvider>
+              </TryOnLockProvider>
             </TryOnProvider>
           </WardrobeProvider>
         </UserProvider>

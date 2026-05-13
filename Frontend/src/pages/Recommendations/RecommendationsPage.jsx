@@ -6,18 +6,21 @@ import { useNavigate } from 'react-router-dom';
 import { normalizeImageUrl, onImageError } from '@/utils/imageLoader';
 import { AnimatedButton } from '@/components/common/MicroInteractions';
 import { useConfettiBlast } from '@/components/common/Confetti';
+// useRecommendation now exposes fetchBottomRecommendations
 
 export default function RecommendationsPage() {
   const navigate = useNavigate();
-  const { fetchRecommendations, recommendations, remainingRecommendations, isLoading } = useRecommendation();
-  const { getBottoms, fetchItems, items } = useWardrobe();
+  const { fetchRecommendations, fetchBottomRecommendations, recommendations, remainingRecommendations, isLoading } = useRecommendation();
+  const { getBottoms, getTops, fetchItems, items } = useWardrobe();
   const { profile, fetchProfile } = useUser();
   const { showSuccess, showError, showInfo } = useNotification();
   const { trigger: triggerConfetti } = useConfettiBlast();
 
+  const [mode, setMode] = useState('bottom'); // 'bottom' for BOTTOM→TOP, 'top' for TOP→BOTTOM
   const [occasion, setOccasion] = useState('casual');
-  const [bottomItem, setBottomItem] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [bottoms, setBottoms] = useState([]);
+  const [tops, setTops] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
   const [imageLoadState, setImageLoadState] = useState({});
@@ -50,7 +53,8 @@ export default function RecommendationsPage() {
 
   useEffect(() => {
     setBottoms(getBottoms());
-  }, [items, getBottoms]);
+    setTops(getTops());
+  }, [items, getBottoms, getTops]);
 
 
   // Trigger confetti when recommendations are successfully fetched
@@ -74,8 +78,9 @@ export default function RecommendationsPage() {
   ];
 
   const handleGetRecommendations = async () => {
-    if (!bottomItem) {
-      showError('Please select a bottom item');
+    if (!selectedItem) {
+      const itemType = mode === 'bottom' ? 'bottom' : 'top';
+      showError(`Please select a ${itemType} item`);
       return;
     }
 
@@ -92,7 +97,13 @@ export default function RecommendationsPage() {
 
     setLoading(true);
     try {
-      await fetchRecommendations(bottomItem.id, occasion);
+      if (mode === 'bottom') {
+        // BOTTOM→TOP: Use existing function
+        await fetchRecommendations(selectedItem.id, occasion);
+      } else {
+        // TOP→BOTTOM: Use context-backed function that updates recommendations state
+        await fetchBottomRecommendations(selectedItem.id, occasion);
+      }
       setShowResults(true);
       showSuccess('Recommendations generated!');
     } catch (error) {
@@ -183,6 +194,76 @@ export default function RecommendationsPage() {
               transition={{ duration: 0.5 }}
               className="space-y-12"
             >
+              {/* MODE SELECTION */}
+              <section>
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-charcoal mb-2">What are you styling?</h2>
+                  <p className="text-warm-taupe">Choose what you already have and get suggestions for the rest</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 max-w-md">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setMode('bottom');
+                      setSelectedItem(null);
+                    }}
+                    className={`card-luxury p-6 text-center space-y-3 relative overflow-hidden transition-all ${mode === 'bottom'
+                        ? 'ring-2 ring-gold-accent'
+                        : 'hover:ring-1 hover:ring-warm-gray'
+                      }`}
+                  >
+                    <div className="text-4xl">👖</div>
+                    <p className={`font-semibold text-sm transition-colors ${mode === 'bottom' ? 'text-gold-accent' : 'text-charcoal'
+                      }`}>
+                      Bottoms
+                    </p>
+                    <p className="text-xs text-warm-taupe">(Find Tops)</p>
+                    <AnimatePresence>
+                      {mode === 'bottom' && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                          className="absolute top-2 right-2 w-5 h-5 bg-gold-accent rounded-full"
+                        />
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setMode('top');
+                      setSelectedItem(null);
+                    }}
+                    className={`card-luxury p-6 text-center space-y-3 relative overflow-hidden transition-all ${mode === 'top'
+                        ? 'ring-2 ring-gold-accent'
+                        : 'hover:ring-1 hover:ring-warm-gray'
+                      }`}
+                  >
+                    <div className="text-4xl">👔</div>
+                    <p className={`font-semibold text-sm transition-colors ${mode === 'top' ? 'text-gold-accent' : 'text-charcoal'
+                      }`}>
+                      Tops
+                    </p>
+                    <p className="text-xs text-warm-taupe">(Find Bottoms)</p>
+                    <AnimatePresence>
+                      {mode === 'top' && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                          className="absolute top-2 right-2 w-5 h-5 bg-gold-accent rounded-full"
+                        />
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                </div>
+              </section>
+
               {/* OCCASION SELECTION */}
               <section>
                 <div className="mb-8">
@@ -241,22 +322,26 @@ export default function RecommendationsPage() {
                 </div>
               </section>
 
-              {/* BOTTOM SELECTION */}
+              {/* ITEM SELECTION */}
               <section>
                 <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">Select a bottom item</h2>
-                  <p className="text-warm-taupe">Pick the bottoms you want to style</p>
+                  <h2 className="text-2xl font-bold text-charcoal mb-2">
+                    Select a {mode === 'bottom' ? 'bottom' : 'top'} item
+                  </h2>
+                  <p className="text-warm-taupe">
+                    Pick the {mode === 'bottom' ? 'bottoms' : 'top'} you want to style
+                  </p>
                 </div>
 
-                {bottoms.length === 0 ? (
+                {(mode === 'bottom' ? bottoms.length : tops.length) === 0 ? (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="card-luxury text-center py-16"
                   >
                     <ImageOff size={48} className="mx-auto text-warm-gray mb-4" />
-                    <h3 className="text-xl font-bold text-charcoal mb-2">No bottoms yet</h3>
-                    <p className="text-warm-taupe mb-6">Add bottoms to your wardrobe first</p>
+                    <h3 className="text-xl font-bold text-charcoal mb-2">No {mode === 'bottom' ? 'bottoms' : 'tops'} yet</h3>
+                    <p className="text-warm-taupe mb-6">Add {mode === 'bottom' ? 'bottoms' : 'tops'} to your wardrobe first</p>
                     <AnimatedButton
                       variant="primary"
                       onClick={() => navigate('/wardrobe')}
@@ -271,13 +356,13 @@ export default function RecommendationsPage() {
                     animate="visible"
                     className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
                   >
-                    {bottoms.map((item) => (
+                    {(mode === 'bottom' ? bottoms : tops).map((item) => (
                       <motion.button
                         key={item.id}
                         variants={itemVariants}
                         whileHover="hover"
-                        onClick={() => setBottomItem(item)}
-                        className={`card-luxury p-4 relative overflow-hidden group transition-all ${bottomItem?.id === item.id
+                        onClick={() => setSelectedItem(item)}
+                        className={`card-luxury p-4 relative overflow-hidden group transition-all ${selectedItem?.id === item.id
                             ? 'ring-2 ring-gold-accent'
                             : 'hover:ring-1 hover:ring-warm-gray'
                           }`}
@@ -295,7 +380,7 @@ export default function RecommendationsPage() {
                               <motion.img
                                 whileHover={{ scale: 1.1 }}
                                 src={normalizeImageUrl(item.image_url) || item.image_url}
-                                alt="Bottom item"
+                                alt="Item"
                                 className="w-full h-full object-cover"
                                 onLoad={() =>
                                   setImageLoadState((prev) => ({ ...prev, [item.id]: 'loaded' }))
@@ -313,7 +398,7 @@ export default function RecommendationsPage() {
                           )}
                         </div>
                         <AnimatePresence>
-                          {bottomItem?.id === item.id && (
+                          {selectedItem?.id === item.id && (
                             <motion.div
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
@@ -342,7 +427,7 @@ export default function RecommendationsPage() {
                 <AnimatedButton
                   variant="primary"
                   onClick={handleGetRecommendations}
-                  disabled={!bottomItem || loading || !hasRemainingRecommendations || isSubscriptionExpired || !profile}
+                  disabled={!selectedItem || loading || !hasRemainingRecommendations || isSubscriptionExpired || !profile}
                   className="flex-1 flex items-center justify-center gap-2 font-semibold"
                 >
                   <Wand2 size={20} />
@@ -363,7 +448,10 @@ export default function RecommendationsPage() {
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h2 className="text-2xl font-bold text-charcoal mb-1">
-                    Top Picks for {occasion.charAt(0).toUpperCase() + occasion.slice(1)}
+                    {mode === 'bottom' 
+                      ? `Top Picks for ${occasion.charAt(0).toUpperCase() + occasion.slice(1)}` 
+                      : `${occasion.charAt(0).toUpperCase() + occasion.slice(1)} Bottoms`
+                    }
                   </h2>
                   <p className="text-warm-taupe">
                     {recommendations.length} stylish options recommended
@@ -398,17 +486,17 @@ export default function RecommendationsPage() {
                   variants={containerVariants}
                   initial="hidden"
                   animate="visible"
-                  className="grid grid-cols-1 md:grid-cols-2 gap-6"
+                  className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
                 >
                   {recommendations.map((outfit, i) => (
                     <motion.div
                       key={outfit.top_item_id || i}
                       variants={itemVariants}
                       whileHover="hover"
-                      className="card-luxury overflow-hidden"
+                      className="card-luxury overflow-hidden p-4"
                     >
                       {/* OUTFIT IMAGE */}
-                      <div className="relative aspect-video overflow-hidden rounded-lg bg-beige mb-6">
+                      <div className="relative aspect-[4/3] max-h-56 overflow-hidden rounded-lg bg-white mb-4 border border-warm-gray/15">
                         {imageLoadState[`outfit-${outfit.top_item_id}`] !== 'error' ? (
                           <>
                             {imageLoadState[`outfit-${outfit.top_item_id}`] !== 'loaded' && (
@@ -422,7 +510,7 @@ export default function RecommendationsPage() {
                               whileHover={{ scale: 1.05 }}
                               src={normalizeImageUrl(outfit.top_item?.image_url) || outfit.top_item?.image_url}
                               alt="Outfit recommendation"
-                              className="w-full h-full object-cover"
+                                className="w-full h-full object-contain p-2"
                               onLoad={() =>
                                 setImageLoadState((prev) => ({
                                   ...prev,
@@ -439,24 +527,24 @@ export default function RecommendationsPage() {
                             />
                           </>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-full h-full flex items-center justify-center bg-white">
                             <ImageOff size={40} className="text-warm-gray" />
                           </div>
                         )}
                       </div>
 
                       {/* INFO */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         {/* COMPATIBILITY SCORE */}
                         {outfit.score && (
                           <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-charcoal">Compatibility</span>
-                              <span className={`text-lg font-bold ${getCompatibilityColor(outfit.score)}`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs font-semibold text-charcoal">Compatibility</span>
+                              <span className={`text-sm font-bold ${getCompatibilityColor(outfit.score)}`}>
                                 {Math.round(outfit.score * 100)}%
                               </span>
                             </div>
-                            <div className="h-2 bg-warm-gray/20 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-warm-gray/20 rounded-full overflow-hidden">
                               <motion.div
                                 className={`h-full ${outfit.score >= 0.8
                                     ? 'gradient-sage'
@@ -474,8 +562,16 @@ export default function RecommendationsPage() {
                         <motion.button
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => navigate('/tryon')}
-                          className="w-full btn-primary py-3 font-semibold"
+                          onClick={() =>
+                            navigate('/tryon', {
+                              state: {
+                                garmentId: outfit.top_item_id,
+                                garmentType: mode === 'bottom' ? 'top' : 'bottom',
+                                garmentItem: outfit.top_item,
+                              },
+                            })
+                          }
+                          className="w-full btn-primary py-2.5 text-sm font-semibold"
                         >
                           Try This On →
                         </motion.button>

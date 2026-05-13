@@ -23,4 +23,4 @@ Write-Host "Docs: http://127.0.0.1:8001/docs"
 Write-Host "PYTHONPATH: $env:PYTHONPATH"
 
 # Start backend without --reload to avoid socket permission issues
-& $pythonExe -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --access-log --log-level info
+& $pythonExe -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --access-log --log-level info --timeout-keep-alive 3600
