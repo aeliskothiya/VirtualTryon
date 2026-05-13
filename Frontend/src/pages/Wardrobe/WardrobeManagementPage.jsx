@@ -37,7 +37,7 @@ export default function WardrobeManagementPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
-  const [previewFile, setPreviewFile] = useState(null);
+  const [previewFiles, setPreviewFiles] = useState([]);
   const [uploadType, setUploadType] = useState('top');
   const [viewMode, setViewMode] = useState('grid');
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading state
@@ -69,26 +69,32 @@ export default function WardrobeManagementPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    const files = e.dataTransfer.files;
-    if (files && files[0]) await processFile(files[0]);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) await processFiles(files);
   };
 
-  const processFile = async (file) => {
+  const processFiles = async (files) => {
     try {
-      const validation = validateImageFile(file);
-      if (!validation.valid) {
-        showError(validation.error);
-        return;
+      const validFiles = [];
+      for (const file of files) {
+        const validation = validateImageFile(file);
+        if (validation.valid) {
+          validFiles.push(file);
+        } else {
+          showError(`${file.name}: ${validation.error}`);
+        }
       }
-      setPreviewFile(file);
+      if (validFiles.length > 0) {
+        setPreviewFiles(validFiles);
+      }
     } catch (error) {
       showError('File validation failed');
     }
   };
 
   const handleUpload = async () => {
-    if (!previewFile) {
-      showError('Please select a file');
+    if (previewFiles.length === 0) {
+      showError('Please select at least one file');
       return;
     }
 
@@ -99,9 +105,28 @@ export default function WardrobeManagementPage() {
 
     setUploading(true);
     try {
-      await uploadItem(uploadType, previewFile);
-      showSuccess(`${uploadType.charAt(0).toUpperCase() + uploadType.slice(1)} uploaded successfully!`);
-      setPreviewFile(null);
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (const file of previewFiles) {
+        try {
+          await uploadItem(uploadType, file);
+          successCount++;
+        } catch (error) {
+          failureCount++;
+          console.error(`Failed to upload ${file.name}:`, error);
+        }
+      }
+
+      if (successCount > 0) {
+        const typeLabel = uploadType === 'one-piece' ? 'One-Piece' : uploadType.charAt(0).toUpperCase() + uploadType.slice(1);
+        showSuccess(`${successCount} ${typeLabel}${successCount > 1 ? 's' : ''} uploaded successfully!`);
+      }
+      if (failureCount > 0) {
+        showError(`${failureCount} file(s) failed to upload`);
+      }
+
+      setPreviewFiles([]);
       await fetchItems(true);
     } catch (error) {
       showError(error.message || 'Upload failed');
@@ -232,41 +257,59 @@ export default function WardrobeManagementPage() {
                   : 'border-warm-gray/50 bg-ivory hover:border-gold-accent hover:bg-gold-accent/2'
               }`}
             >
-              {previewFile ? (
+              {previewFiles.length > 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="space-y-6"
                 >
-                  <div className="relative aspect-square max-w-xs mx-auto rounded-xl overflow-hidden border border-warm-gray shadow-luxury">
-                    <img
-                      src={URL.createObjectURL(previewFile)}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                    {previewFiles.map((file, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative rounded-lg overflow-hidden border border-warm-gray shadow-luxury"
+                      >
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-32 object-cover"
+                        />
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setPreviewFiles(previewFiles.filter((_, i) => i !== index))}
+                          className="absolute top-1 right-1 bg-rose-dust text-white rounded-full p-1 opacity-0 hover:opacity-100 transition-opacity"
+                          title="Remove file"
+                        >
+                          <X size={14} />
+                        </motion.button>
+                      </motion.div>
+                    ))}
                   </div>
                   <div className="text-center space-y-2">
                     <p className="text-sm font-medium text-charcoal">
-                      {previewFile.name}
+                      {previewFiles.length} file{previewFiles.length > 1 ? 's' : ''} selected
                     </p>
                     <p className="text-xs text-warm-taupe">
-                      {(previewFile.size / 1024 / 1024).toFixed(2)} MB
+                      Total: {(previewFiles.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
-                  <div className="flex gap-4 justify-center pt-4">
+                  <div className="flex gap-4 justify-center pt-4 flex-wrap">
                     <AnimatedButton 
                       variant="secondary"
-                      onClick={() => setPreviewFile(null)}
+                      onClick={() => setPreviewFiles([])}
                       disabled={uploading}
                     >
-                      Change
+                      Clear All
                     </AnimatedButton>
                     <AnimatedButton 
                       variant="primary"
                       onClick={handleUpload}
                       disabled={uploading || !canUploadMore}
                     >
-                      {uploading ? 'Adding...' : canUploadMore ? 'Add to Wardrobe' : 'Wardrobe Full'}
+                      {uploading ? `Uploading (${previewFiles.length})...` : canUploadMore ? `Upload ${previewFiles.length}` : 'Wardrobe Full'}
                     </AnimatedButton>
                   </div>
                 </motion.div>
@@ -284,13 +327,14 @@ export default function WardrobeManagementPage() {
                       Add to your collection
                     </h3>
                     <p className="text-warm-taupe text-center mb-6 max-w-sm">
-                      Drag your fashion pieces here or click to browse your files
+                      Drag your fashion pieces here or click to browse your files (multiple selection supported)
                     </p>
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={(e) => {
-                        if (e.target.files?.[0]) processFile(e.target.files[0]);
+                        if (e.target.files) processFiles(Array.from(e.target.files));
                       }}
                       className="hidden"
                     />
@@ -313,27 +357,23 @@ export default function WardrobeManagementPage() {
                 <label className="block text-sm font-semibold text-charcoal mb-4">
                   Item Category
                 </label>
-                <div className="space-y-3">
-                  {[
-                    { value: 'top', label: 'Tops', icon: '👔', gradient: 'gradient-powder' },
-                    { value: 'bottom', label: 'Bottoms', icon: '👖', gradient: 'gradient-sage' },
-                  ].map((type) => (
-                    <motion.button
-                      key={type.value}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setUploadType(type.value)}
-                      className={`w-full py-4 px-6 rounded-xl font-semibold transition-all text-center ${
-                        uploadType === type.value
-                          ? `${type.gradient} text-cream shadow-luxury`
-                          : 'bg-ivory border border-warm-gray text-charcoal hover:border-gold-accent'
-                      }`}
-                    >
-                      <span className="mr-2">{type.icon}</span>
-                      {type.label}
-                    </motion.button>
-                  ))}
-                </div>
+                <motion.select
+                  value={uploadType}
+                  onChange={(e) => setUploadType(e.target.value)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-4 px-6 rounded-xl font-semibold border-2 border-warm-gray bg-ivory text-charcoal transition-all appearance-none cursor-pointer hover:border-gold-accent focus:outline-none focus:border-gold-accent focus:ring-2 focus:ring-gold-accent/20"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23000000' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 1rem center',
+                    paddingRight: '2.5rem',
+                  }}
+                >
+                  <option value="top">👔 Tops</option>
+                  <option value="bottom">👖 Bottoms</option>
+                  <option value="one-piece">👗 One-Pieces</option>
+                </motion.select>
               </div>
 
               <motion.button
@@ -361,6 +401,7 @@ export default function WardrobeManagementPage() {
               { value: 'all', label: 'All Items' },
               { value: 'top', label: 'Tops' },
               { value: 'bottom', label: 'Bottoms' },
+              { value: 'one-piece', label: 'One-Pieces' },
             ].map((f) => (
               <AnimatedButton
                 key={f.value}

@@ -50,6 +50,7 @@ def run_tryon(
     garment_image_path: str | Path,
     output_path: str | Path,
     garment_photo_type: str | None = None,
+    category: str | None = None,
 ) -> None:
     person_image_path = Path(person_image_path)
     garment_image_path = Path(garment_image_path)
@@ -80,10 +81,14 @@ def run_tryon(
     if resolved_garment_photo_type not in {"model", "flat-lay"}:
         raise RuntimeError("garment_photo_type must be 'model' or 'flat-lay'")
 
+    resolved_category = (category or settings.vton_category).strip().lower()
+    if resolved_category not in {"tops", "bottoms", "one-pieces"}:
+        raise RuntimeError("category must be 'tops', 'bottoms', or 'one-pieces'")
+
     result = pipeline(
         person_image=person,
         garment_image=garment,
-        category=settings.vton_category,
+        category=resolved_category,
         garment_photo_type=resolved_garment_photo_type,
         num_timesteps=settings.vton_num_timesteps,
         guidance_scale=settings.vton_guidance_scale,

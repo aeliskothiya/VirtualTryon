@@ -100,6 +100,10 @@ export const WardrobeProvider = ({ children }) => {
     return items.filter((item) => item.type === 'bottom' && item.active_status === 'active');
   }, [items]);
 
+  const getOnePieces = useCallback(() => {
+    return items.filter((item) => item.type === 'one-piece' && item.active_status === 'active');
+  }, [items]);
+
   const value = {
     items,
     isLoading,
@@ -114,6 +118,7 @@ export const WardrobeProvider = ({ children }) => {
     getFilteredItems,
     getTops,
     getBottoms,
+    getOnePieces,
   };
 
   return (

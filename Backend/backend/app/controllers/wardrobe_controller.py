@@ -21,8 +21,8 @@ logger = logging.getLogger("uvicorn.error")
 
 
 def upload_wardrobe_item(type: str, file: UploadFile, current_user: dict, db: Database) -> dict:
-    if type not in {"top", "bottom"}:
-        raise HTTPException(status_code=400, detail="Wardrobe item type must be top or bottom")
+    if type not in {"top", "bottom", "one-piece"}:
+        raise HTTPException(status_code=400, detail="Wardrobe item type must be top, bottom, or one-piece")
 
     ensure_wardrobe_capacity(db, current_user)
 

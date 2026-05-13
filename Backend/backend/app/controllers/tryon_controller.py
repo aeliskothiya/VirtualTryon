@@ -29,8 +29,8 @@ def create_tryon(
     item = get_wardrobe_item_for_user(db, top_item_id, str(current_user["_id"]), include_inactive=False)
     if item is None:
         raise HTTPException(status_code=404, detail="Wardrobe item not found")
-    if item["type"] != "top":
-        raise HTTPException(status_code=400, detail="Only top items can be used for try-on")
+    if item["type"] not in ("top", "bottom", "one-piece"):
+        raise HTTPException(status_code=400, detail="Only top, bottom, and one-piece items can be used for try-on")
 
     ensure_tryon_limit(db, current_user)
 
@@ -64,7 +64,14 @@ def create_tryon(
 
     try:
         output_path = create_tryon_output_path(str(current_user["_id"]), str(job["_id"]))
-        run_tryon(input_photo_path, garment_path, output_path, garment_photo_type=garment_photo_type)
+        # Determine category from item type (map to VTON categories)
+        if item["type"] == "top":
+            category = "tops"
+        elif item["type"] == "bottom":
+            category = "bottoms"
+        else:  # one-piece
+            category = "one-pieces"
+        run_tryon(input_photo_path, garment_path, output_path, garment_photo_type=garment_photo_type, category=category)
         is_saved = should_save_tryon_output(db, current_user)
         db.tryon_jobs.update_one(
             {"_id": job["_id"]},

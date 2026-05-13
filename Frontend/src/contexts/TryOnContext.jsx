@@ -28,14 +28,15 @@ export const TryOnProvider = ({ children }) => {
     }
   }, []);
 
-  const createTryOn = useCallback(async (topItemId, overridePhoto = null) => {
+  const createTryOn = useCallback(async (garmentItemId, overridePhoto = null) => {
     setIsProcessing(true);
     setProcessingProgress(0);
     setError(null);
 
     try {
       const formData = new FormData();
-      formData.append('top_item_id', topItemId);
+      // Keep 'top_item_id' for backward API compatibility
+      formData.append('top_item_id', garmentItemId);
 
       if (overridePhoto) {
         formData.append('override_photo', overridePhoto);

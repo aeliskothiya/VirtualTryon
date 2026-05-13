@@ -22,16 +22,17 @@ import { useConfettiBlast } from '@/components/common/Confetti';
 export default function TryOnPage() {
   const navigate = useNavigate();
   const { createTryOn, currentJob, isProcessing, processingProgress } = useTryOn();
-  const { fetchItems, items, getTops } = useWardrobe();
+  const { fetchItems, items, getTops, getBottoms, getOnePieces } = useWardrobe();
   const { profile } = useUser();
   const { showSuccess, showError } = useNotification();
   const { triggerConfetti } = useConfettiBlast();
 
   const [step, setStep] = useState('select');
-  const [selectedTop, setSelectedTop] = useState(null);
+  const [garmentType, setGarmentType] = useState('top'); // 'top' or 'bottom'
+  const [selectedGarment, setSelectedGarment] = useState(null);
   const [userPhoto, setUserPhoto] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [tops, setTops] = useState([]);
+  const [garments, setGarments] = useState([]);
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isSliderDragging, setIsSliderDragging] = useState(false);
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading
@@ -46,9 +47,15 @@ export default function TryOnPage() {
     fetchItems();
   }, [fetchItems]);
 
+  // Update garments list based on selected garment type
   useEffect(() => {
-    setTops(getTops());
-  }, [items, getTops]);
+    let newGarments = [];
+    if (garmentType === 'top') newGarments = getTops();
+    else if (garmentType === 'bottom') newGarments = getBottoms();
+    else if (garmentType === 'one-piece') newGarments = getOnePieces();
+    setGarments(newGarments);
+    setSelectedGarment(null); // Reset selection when changing type
+  }, [items, getTops, getBottoms, getOnePieces, garmentType]);
 
   // Trigger confetti when try-on results are ready
   useEffect(() => {
@@ -89,8 +96,9 @@ export default function TryOnPage() {
   };
 
   const handleStartTryOn = async () => {
-    if (!selectedTop) {
-      showError('Please select a top item');
+    if (!selectedGarment) {
+      const garmentName = garmentType === 'top' ? 'top' : garmentType === 'bottom' ? 'bottom' : 'one-piece';
+      showError(`Please select a ${garmentName} item`);
       return;
     }
     if (!userPhoto) {
@@ -112,7 +120,7 @@ export default function TryOnPage() {
 
     setStep('process');
     try {
-      await createTryOn(selectedTop.id, userPhoto);
+      await createTryOn(selectedGarment.id, userPhoto);
       showSuccess('Try-on started!');
     } catch (error) {
       showError(error.message || 'Try-on failed');
@@ -208,21 +216,64 @@ export default function TryOnPage() {
               transition={{ duration: 0.5 }}
               className="space-y-12"
             >
-              {/* TOP SELECTION */}
+              {/* GARMENT TYPE SELECTOR */}
               <section>
                 <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">Step 1: Select a Top</h2>
+                  <h2 className="text-2xl font-bold text-charcoal mb-4">Step 1: Choose What to Try On</h2>
+                  <div className="flex gap-4 flex-wrap">
+                    <button
+                      onClick={() => setGarmentType('top')}
+                      className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                        garmentType === 'top'
+                          ? 'bg-gold-accent text-white'
+                          : 'bg-beige text-charcoal hover:bg-warm-gray'
+                      }`}
+                    >
+                      Try On Tops
+                    </button>
+                    <button
+                      onClick={() => setGarmentType('bottom')}
+                      className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                        garmentType === 'bottom'
+                          ? 'bg-gold-accent text-white'
+                          : 'bg-beige text-charcoal hover:bg-warm-gray'
+                      }`}
+                    >
+                      Try On Bottoms
+                    </button>
+                    <button
+                      onClick={() => setGarmentType('one-piece')}
+                      className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                        garmentType === 'one-piece'
+                          ? 'bg-gold-accent text-white'
+                          : 'bg-beige text-charcoal hover:bg-warm-gray'
+                      }`}
+                    >
+                      Try On One-Pieces
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* GARMENT SELECTION */}
+              <section>
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-charcoal mb-2">
+                    Step 2: Select a {garmentType === 'top' ? 'Top' : garmentType === 'bottom' ? 'Bottom' : 'One-Piece'}
+                  </h2>
                   <p className="text-warm-taupe">Choose an item from your wardrobe to virtually try on</p>
                 </div>
 
-                {tops.length === 0 ? (
+                {garments.length === 0 ? (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="card-luxury text-center py-16"
                   >
                     <ImageOff size={48} className="mx-auto text-warm-gray mb-4" />
-                    <h3 className="text-xl font-bold text-charcoal mb-2">No tops yet</h3>
+                    <h3 className="text-xl font-bold text-charcoal mb-2">
+                      No {garmentType === 'top' ? 'tops' : garmentType === 'bottom' ? 'bottoms' : 'one-pieces'} yet
+                    </h3>
                     <p className="text-warm-taupe mb-6">
                       Build your wardrobe first to start trying on
                     </p>
@@ -240,14 +291,14 @@ export default function TryOnPage() {
                     animate="visible"
                     className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
                   >
-                    {tops.map((item) => (
+                    {garments.map((item) => (
                       <motion.button
                         key={item.id}
                         variants={topItemVariants}
                         whileHover="hover"
-                        onClick={() => setSelectedTop(item)}
+                        onClick={() => setSelectedGarment(item)}
                         className={`card-luxury p-4 relative overflow-hidden group cursor-pointer transition-all ${
-                          selectedTop?.id === item.id
+                          selectedGarment?.id === item.id
                             ? 'ring-2 ring-gold-accent'
                             : 'hover:ring-1 hover:ring-warm-gray'
                         }`}
@@ -266,7 +317,7 @@ export default function TryOnPage() {
                               <motion.img
                                 whileHover={{ scale: 1.1 }}
                                 src={getImageUrl(item)}
-                                alt="Top item"
+                                alt="Garment item"
                                 className="w-full h-full object-cover"
                                 onLoad={() => handleImageLoad(item.id)}
                                 onError={(e) => handleImageError(item.id, item.image_url)}
@@ -281,7 +332,7 @@ export default function TryOnPage() {
 
                         {/* Selection Badge */}
                         <AnimatePresence>
-                          {selectedTop?.id === item.id && (
+                          {selectedGarment?.id === item.id && (
                             <motion.div
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
@@ -301,7 +352,7 @@ export default function TryOnPage() {
               {/* PHOTO UPLOAD */}
               <section>
                 <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">Step 2: Upload Your Photo</h2>
+                  <h2 className="text-2xl font-bold text-charcoal mb-2">Step 3: Upload Your Photo</h2>
                   <p className="text-warm-taupe">A clear photo of yourself for accurate virtual try-on</p>
                 </div>
 
@@ -383,7 +434,7 @@ export default function TryOnPage() {
                 <AnimatedButton
                   variant="primary"
                   onClick={handleStartTryOn}
-                  disabled={!selectedTop || !userPhoto}
+                  disabled={!selectedGarment || !userPhoto}
                   className="flex-1 flex items-center justify-center gap-2 font-semibold"
                 >
                   <Play size={20} />
