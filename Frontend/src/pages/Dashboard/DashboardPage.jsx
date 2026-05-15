@@ -91,8 +91,8 @@ export default function DashboardPage() {
         current: profile.saved_tryons_used_this_month || 0,
         total: profile.saved_tryon_monthly_limit,
         icon: TrendingUp,
-        color: 'bg-gold-accent',
-        gradient: 'gradient-gold',
+        color: 'bg-terracotta',
+        gradient: 'gradient-terracotta',
       },
     ]
     : [];
@@ -101,7 +101,7 @@ export default function DashboardPage() {
     { label: 'My Wardrobe', path: '/wardrobe', icon: ShoppingBag, bg: 'gradient-powder' },
     { label: 'Try-On Now', path: '/tryon', icon: Zap, bg: 'gradient-sage' },
     { label: 'Get Recommendations', path: '/recommendations', icon: Wand2, bg: 'gradient-rose' },
-    { label: 'Saved Collection', path: '/saved-tryons', icon: TrendingUp, bg: 'gradient-gold' },
+    { label: 'Saved Collection', path: '/saved-tryons', icon: TrendingUp, bg: 'gradient-terracotta' },
   ];
 
   return (
@@ -110,13 +110,13 @@ export default function DashboardPage() {
       <motion.header
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 bg-white border-b border-warm-gray/30 px-4 sm:px-8 py-1"
+        className="sticky top-0 z-40 bg-white border-b border-warm-gray/30 px-4 sm:px-8 py-4"
       >
         <div className="container-luxury flex items-center justify-between">
           <div className="flex items-center gap-3">
             {profile?.profile_photo_url ? (
               imageLoadState['profile'] === 'error' ? (
-                <div className="w-12 h-12 rounded-full border-2 border-gold-accent bg-ivory flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full border-2 border-terracotta bg-ivory flex items-center justify-center">
                   <span className="text-xl">👤</span>
                 </div>
               ) : (
@@ -125,13 +125,13 @@ export default function DashboardPage() {
                   animate={{ scale: 1 }}
                   src={normalizeImageUrl(profile.profile_photo_url)}
                   alt="Profile"
-                  className="w-12 h-12 rounded-full border-2 border-gold-accent object-cover"
+                  className="w-12 h-12 rounded-full border-2 border-terracotta object-cover"
                   onLoad={() => handleImageLoad('profile')}
                   onError={() => handleImageError('profile')}
                 />
               )
             ) : (
-              <div className="w-12 h-12 rounded-full border-2 border-gold-accent bg-ivory flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full border-2 border-terracotta bg-ivory flex items-center justify-center">
                 <span className="text-xl">👤</span>
               </div>
             )}
@@ -146,18 +146,19 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex gap-2">
-            {profile?.subscription_plan !== 'premium' && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/subscription')}
-                className="px-3 py-2 rounded-lg bg-gold-accent text-cream font-semibold hover:shadow-lg transition-all flex items-center gap-2"
-                title="Upgrade Plan"
-              >
-                <Crown size={18} />
-                <span className="hidden sm:inline">Upgrade</span>
-              </motion.button>
-            )}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/subscription')}
+              className="px-3 py-2 rounded-lg bg-terracotta text-cream font-semibold hover:shadow-lg transition-all flex items-center gap-2"
+              title="Subscription"
+            >
+              <Crown size={18} />
+              <span className="hidden sm:inline">
+                {profile?.subscription_plan === 'premium' ? 'Premium' : 'Upgrade'}
+              </span>
+            </motion.button>
+
             <motion.button
               onClick={() => navigate('/settings')}
               className="p-2.5 hover:bg-ivory rounded-lg transition-colors"
@@ -180,7 +181,7 @@ export default function DashboardPage() {
             className="mt-5 mb-3"
           >
             <div className="card-luxury relative overflow-hidden p-3">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-gold-accent/10 rounded-full -mr-10 -mt-10" />
+              <div className="absolute top-0 right-0 w-20 h-20 bg-terracotta/10 rounded-full -mr-10 -mt-10" />
               <div className="relative">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -292,7 +293,7 @@ export default function DashboardPage() {
                           {quota.total === null || quota.total === undefined ? 'Unlimited access' : `${Math.round(percentage)}% used`}
                           {isMaxed && <span className="ml-2 text-rose-dust font-semibold">Maxed</span>}
                           {profile?.is_subscription_expired && <span className="ml-2 text-rose-dust font-semibold">🔒 Expired</span>}
-                          {isExpiring && !isMaxed && <span className="ml-2 text-gold-accent font-semibold">Expiring Soon</span>}
+                          {isExpiring && !isMaxed && <span className="ml-2 text-terracotta font-semibold">Expiring Soon</span>}
                         </p>
                       </div>
 
@@ -355,7 +356,7 @@ export default function DashboardPage() {
                     >
                       <Icon size={20} />
                     </motion.div>
-                    <h3 className="text-sm font-bold text-charcoal group-hover:text-gold-accent transition-colors">
+                    <h3 className="text-sm font-bold text-charcoal group-hover:text-terracotta transition-colors">
                       {btn.label}
                     </h3>
                     <p className="text-[11px] text-warm-taupe mt-auto">

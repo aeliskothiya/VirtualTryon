@@ -38,6 +38,7 @@ export default function RecommendationsPage() {
   // Fall back to context data after first fetch
   const remainingRecs = profile?.remaining_recommendations_today ?? remainingRecommendations;
   const hasRemainingRecommendations =
+    profile?.recommendation_daily_limit === null ||
     remainingRecs === null ||
     remainingRecs === undefined ||
     remainingRecs > 0;
@@ -100,9 +101,19 @@ export default function RecommendationsPage() {
   ];
 
   const handleGetRecommendations = async () => {
+    // Loading guard — just return silently
+    if (loading) return;
+
+    // Profile not loaded yet
+    if (!profile) {
+      showError('Please wait while your profile loads.');
+      return;
+    }
+
+    // No item selected
     if (!selectedItem) {
       const itemType = mode === 'bottom' ? 'bottom' : 'top';
-      showError(`Please select a ${itemType} item`);
+      showError(`Please select a ${itemType} item first to get recommendations.`);
       return;
     }
 
@@ -112,6 +123,7 @@ export default function RecommendationsPage() {
       return;
     }
 
+    // Block if daily limit reached
     if (!hasRemainingRecommendations) {
       setShowUpgradeModal(true);
       return;
@@ -199,7 +211,7 @@ export default function RecommendationsPage() {
             transition={{ duration: 4, repeat: Infinity }}
             className="p-3 bg-ivory rounded-lg"
           >
-            <Sparkles size={24} className="text-gold-accent" />
+            <Sparkles size={24} className="text-terracotta" />
           </motion.div>
         </div>
       </motion.header>
@@ -235,7 +247,7 @@ export default function RecommendationsPage() {
                         setCurrentPage(1);
                       }}
                       className={`card-luxury p-2 w-28 text-center space-y-1 relative overflow-hidden transition-all ${mode === 'bottom'
-                        ? 'ring-2 ring-gold-accent'
+                        ? 'ring-2 ring-terracotta'
                         : 'hover:ring-1 hover:ring-warm-gray'
                         }`}
                     >
@@ -251,7 +263,7 @@ export default function RecommendationsPage() {
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
                             exit={{ scale: 0 }}
-                            className="absolute top-2 right-2 w-5 h-5 bg-gold-accent rounded-full"
+                            className="absolute top-2 right-2 w-5 h-5 bg-terracotta rounded-full"
                           />
                         )}
                       </AnimatePresence>
@@ -282,7 +294,7 @@ export default function RecommendationsPage() {
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
                             exit={{ scale: 0 }}
-                            className="absolute top-2 right-2 w-5 h-5 bg-gold-accent rounded-full"
+                            className="absolute top-2 right-2 w-5 h-5 bg-terracotta rounded-full"
                           />
                         )}
                       </AnimatePresence>
@@ -303,8 +315,8 @@ export default function RecommendationsPage() {
                       whileHover={occasionFilterAvailable ? { scale: 1.02 } : {}}
                       whileTap={occasionFilterAvailable ? { scale: 0.98 } : {}}
                       onClick={() => occasionFilterAvailable && setIsDropdownOpen(!isDropdownOpen)}
-                      className={`w-full py-4 px-5 rounded-xl font-semibold border-2 bg-ivory transition-all flex items-center justify-between shadow-sm focus:outline-none focus:ring-2 focus:ring-gold-accent/20 ${occasionFilterAvailable
-                          ? 'border-warm-gray/50 text-charcoal hover:border-gold-accent'
+                      className={`w-full py-4 px-5 rounded-xl font-semibold border-2 bg-ivory transition-all flex items-center justify-between shadow-sm focus:outline-none focus:ring-2 focus:ring-terracotta/20 ${occasionFilterAvailable
+                          ? 'border-warm-gray/50 text-charcoal hover:border-terracotta'
                           : 'border-warm-gray/30 text-warm-taupe opacity-60 bg-warm-gray/10'
                         }`}
                     >
@@ -335,7 +347,7 @@ export default function RecommendationsPage() {
                                 setOccasion(occ.value);
                                 setIsDropdownOpen(false);
                               }}
-                              className={`w-full px-5 py-3 flex items-center gap-3 hover:bg-ivory transition-colors text-left font-medium ${occasion === occ.value ? 'bg-gold-accent/10 text-gold-accent' : 'text-charcoal'
+                              className={`w-full px-5 py-3 flex items-center gap-3 hover:bg-ivory transition-colors text-left font-medium ${occasion === occ.value ? 'bg-terracotta/10 text-terracotta' : 'text-charcoal'
                                 }`}
                             >
                               <span className="text-xl">{occ.icon}</span>
@@ -349,8 +361,8 @@ export default function RecommendationsPage() {
                     {/* Premium Upgrade Overlay */}
                     {!occasionFilterAvailable && (
                       <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[2px] rounded-xl border border-warm-gray/20">
-                        <div className="bg-white p-3 rounded-xl border border-gold-accent/30 shadow-luxury text-center flex flex-col items-center gap-2">
-                          <div className="flex items-center gap-2 text-gold-accent">
+                        <div className="bg-white p-3 rounded-xl border border-terracotta/30 shadow-luxury text-center flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-2 text-terracotta">
                             <Crown size={16} />
                             <span className="font-bold text-sm">Premium Feature</span>
                           </div>
@@ -374,11 +386,11 @@ export default function RecommendationsPage() {
                         <p className="text-warm-taupe text-xs tracking-tight">Choose 1 to 5 style suggestions</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-black text-gold-accent bg-gold-accent/10 px-2 py-0.5 rounded">
+                        <span className="text-sm font-black text-terracotta bg-terracotta/10 px-2 py-0.5 rounded">
                           {suggestionCount  }
                         </span>
                         {suggestionCount === 3 && (
-                          <span className="text-[10px] font-black bg-gold-accent text-white px-2 py-0.5 rounded uppercase tracking-tighter">
+                          <span className="text-[10px] font-black bg-terracotta text-white px-2 py-0.5 rounded uppercase tracking-tighter">
                             Recommended
                           </span>
                         )}
@@ -394,7 +406,7 @@ export default function RecommendationsPage() {
                           step="1"
                           value={suggestionCount}
                           onChange={(e) => setSuggestionCount(parseInt(e.target.value))}
-                          className="w-full h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-gold-accent group-hover:bg-warm-gray/30 transition-all"
+                          className="w-full h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-terracotta group-hover:bg-warm-gray/30 transition-all"
                         />
                       </div>
                     </div>
@@ -446,8 +458,8 @@ export default function RecommendationsPage() {
                             whileHover="hover"
                             onClick={() => setSelectedItem(item)}
                             className={`card-garment relative overflow-hidden group transition-all ${selectedItem?.id === item.id
-                              ? 'ring-2 ring-gold-accent'
-                              : 'hover:ring-1 hover:ring-gold-accent'
+                              ? 'ring-2 ring-terracotta'
+                              : 'hover:ring-1 hover:ring-terracotta'
                               }`}
                           >
                             <div className="aspect-[4/5] overflow-hidden rounded-md bg-white">
@@ -486,7 +498,7 @@ export default function RecommendationsPage() {
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
                                   exit={{ scale: 0 }}
-                                  className="absolute top-2 right-2 w-6 h-6 bg-gold-accent rounded-full flex items-center justify-center text-cream text-sm"
+                                  className="absolute top-2 right-2 w-6 h-6 bg-terracotta rounded-full flex items-center justify-center text-cream text-sm"
                                 >
                                   ✓
                                 </motion.div>
@@ -533,11 +545,10 @@ export default function RecommendationsPage() {
                 <AnimatedButton
                   variant="primary"
                   onClick={handleGetRecommendations}
-                  disabled={!selectedItem || loading || !hasRemainingRecommendations || isSubscriptionExpired || !profile}
                   className="flex-1 flex items-center justify-center gap-2 font-semibold"
                 >
                   <Wand2 size={20} />
-                  {loading ? 'Generating...' : !profile ? 'Loading...' : 'Get Recommendations'}
+                  {loading ? 'Generating...' : 'Get Recommendations'}
                 </AnimatedButton>
               </div>
             </motion.div>
@@ -599,7 +610,7 @@ export default function RecommendationsPage() {
                       key={outfit.top_item_id || i}
                       variants={itemVariants}
                       whileHover="hover"
-                      className="card-garment overflow-hidden p-3 transition-all hover:ring-2 hover:ring-gold-accent/30 group"
+                      className="card-garment overflow-hidden p-3 transition-all hover:ring-2 hover:ring-terracotta/30 group"
                     >
                       {/* OUTFIT IMAGE */}
                       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-white mb-4 border border-warm-gray/10 shadow-inner">
@@ -677,7 +688,7 @@ export default function RecommendationsPage() {
                               },
                             })
                           }
-                          className="w-full bg-gold-accent text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-luxury hover:shadow-xl transition-all"
+                          className="w-full bg-terracotta text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-luxury hover:shadow-xl transition-all"
                         >
                           Try This On →
                         </motion.button>
@@ -707,10 +718,10 @@ export default function RecommendationsPage() {
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
                 className="relative w-full max-w-lg bg-cream rounded-2xl shadow-luxury overflow-hidden"
               >
-                <div className="h-2 bg-gradient-gold" />
+                <div className="h-2 bg-gradient-terracotta" />
                 <div className="p-8">
-                  <div className="w-16 h-16 bg-gold-accent/10 rounded-full flex items-center justify-center mb-6 mx-auto">
-                    <Crown size={32} className="text-gold-accent" />
+                  <div className="w-16 h-16 bg-terracotta/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+                    <Crown size={32} className="text-terracotta" />
                   </div>
 
                   <h3 className="text-2xl font-bold text-charcoal text-center mb-3">

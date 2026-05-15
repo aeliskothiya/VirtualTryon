@@ -54,7 +54,7 @@ export default function SavedTryOnsPage() {
             <div>
               <h1 className="text-3xl sm:text-4xl font-bold text-charcoal flex items-center gap-3">
                 Saved Try-Ons
-                <TrendingUp className="text-gold-accent" size={28} />
+                <TrendingUp className="text-terracotta" size={28} />
               </h1>
               <p className="text-warm-taupe text-sm">
                 Your personal fashion transformation collection
@@ -67,7 +67,7 @@ export default function SavedTryOnsPage() {
       <div className="container-luxury pt-3 ">
         {isLoading && savedHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-12 h-12 border-4 border-gold-accent/20 border-t-gold-accent rounded-full animate-spin mb-4" />
+            <div className="w-12 h-12 border-4 border-terracotta/20 border-t-terracotta rounded-full animate-spin mb-4" />
             <p className="text-warm-taupe">Loading your collection...</p>
           </div>
         ) : savedHistory.length === 0 ? (
@@ -102,7 +102,7 @@ export default function SavedTryOnsPage() {
               <motion.div
                 key={job.id}
                 variants={itemVariants}
-                className="card-garment group relative overflow-hidden transition-all hover:ring-1 hover:ring-gold-accent"
+                className="card-garment group relative overflow-hidden transition-all hover:ring-1 hover:ring-terracotta"
               >
                 <div className="aspect-[3/4] rounded-md overflow-hidden bg-white mb-3 relative">
                   <img

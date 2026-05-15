@@ -224,7 +224,7 @@ export default function SubscriptionPage() {
             </div>
           </div>
           <div className="p-3 bg-ivory rounded-lg">
-            <Crown size={24} className="text-gold-accent" />
+            <Crown size={24} className="text-terracotta" />
           </div>
         </div>
       </motion.header>
@@ -271,39 +271,42 @@ export default function SubscriptionPage() {
                   key={plan.code}
                   variants={planVariants}
                   whileHover="hover"
-                  className={`card-luxury relative overflow-hidden group transition-all ${activePlanCode === plan.code ? 'ring-2 ring-gold-accent scale-105' : ''
-                    } ${plan.name.toLowerCase() === 'premium' ? 'md:scale-105' : ''}`}
+                  className={`card-luxury relative overflow-hidden group transition-all ${
+                    activePlanCode === plan.code ? 'ring-2 ring-terracotta scale-105' : ''
+                  } ${plan.name.toLowerCase() === 'premium' ? 'md:scale-105' : ''}`}
                 >
                   {/* PREMIUM BADGE */}
                   {plan.name.toLowerCase() === 'premium' && (
                     <motion.div
                       animate={{ y: [0, -3, 0] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className="absolute top-4 right-4 px-4 py-1 gradient-gold text-white rounded-full text-xs font-bold shadow-sm"
+                      className="absolute top-4 right-4 px-4 py-1 gradient-terracotta text-white rounded-full text-xs font-bold shadow-sm"
                     >
                       Most Popular
                     </motion.div>
                   )}
 
-                  {/* CURRENT PLAN BADGE */}
-                  {activePlanCode === plan.code && (
-                    <div className={`absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold ${profile?.is_subscription_expired
-                        ? 'bg-rose-dust text-white'
-                        : 'bg-sage text-white'
-                      }`}>
-                      {profile?.is_subscription_expired ? 'Last Plan' : 'Current Plan'}
-                    </div>
-                  )}
-
-                  {/* PLAN INFO */}
+                  {/* CURRENT PLAN BADGE + PLAN INFO */}
                   <div className="mb-8">
+                    {/* Badge row — sits above the heading, no overlap */}
+                    {activePlanCode === plan.code && (
+                      <div className="mb-3">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
+                          profile?.is_subscription_expired
+                            ? 'bg-rose-dust/15 text-rose-dust'
+                            : 'bg-sage/15 text-sage'
+                        }`}>
+                          {profile?.is_subscription_expired ? '⚠ Last Plan' : '✓ Current Plan'}
+                        </span>
+                      </div>
+                    )}
                     <h3 className="text-2xl font-bold text-charcoal mb-2 capitalize">
                       {plan.name}
                     </h3>
                     <p className="text-sm text-warm-taupe mb-4">{plan.description}</p>
                     <div className="space-y-2">
                       <div>
-                        <span className="text-4xl font-bold text-gold-accent">
+                        <span className="text-4xl font-bold text-terracotta">
                           ₹{Math.round(plan.price_inr)}
                         </span>
                         <span className="text-warm-taupe ml-2 text-sm">/month</span>
@@ -318,7 +321,7 @@ export default function SubscriptionPage() {
                         <Check size={16} className="text-sage" />
                       </div>
                       <span className="text-sm text-charcoal">
-                        {plan.wardrobe_limit} wardrobe items
+                        {plan.wardrobe_limit === null ? 'Unlimited wardrobe storage' : `${plan.wardrobe_limit} wardrobe items`}
                       </span>
                     </div>
                     <div className="flex items-start gap-3">
@@ -326,7 +329,7 @@ export default function SubscriptionPage() {
                         <Check size={16} className="text-sage" />
                       </div>
                       <span className="text-sm text-charcoal">
-                        {plan.tryon_daily_limit} try-ons per day
+                        {plan.tryon_daily_limit === null ? 'Unlimited try-ons' : `${plan.tryon_daily_limit} try-ons per day`}
                       </span>
                     </div>
                     <div className="flex items-start gap-3">
@@ -334,7 +337,7 @@ export default function SubscriptionPage() {
                         <Check size={16} className="text-sage" />
                       </div>
                       <span className="text-sm text-charcoal">
-                        {plan.recommendation_daily_limit ? `${plan.recommendation_daily_limit} recommendations per day` : 'Unlimited recommendations'}
+                        {plan.recommendation_daily_limit === null ? 'Unlimited recommendations' : `${plan.recommendation_daily_limit} recommendations per day`}
                       </span>
                     </div>
                     {plan.saved_tryon_monthly_limit > 0 && (
@@ -343,7 +346,7 @@ export default function SubscriptionPage() {
                           <Check size={16} className="text-sage" />
                         </div>
                         <span className="text-sm text-charcoal">
-                          {plan.saved_tryon_monthly_limit} saved try-ons per month
+                          {plan.saved_tryon_monthly_limit === null ? 'Unlimited saved try-ons' : `${plan.saved_tryon_monthly_limit} saved try-ons per month`}
                         </span>
                       </div>
                     )}
@@ -487,8 +490,8 @@ export default function SubscriptionPage() {
                 </p>
 
                 <div className="bg-ivory rounded-xl p-4 border border-warm-gray/30 mb-8 flex gap-4 items-start">
-                  <div className="p-2 bg-gold-accent/10 rounded-lg shrink-0">
-                    <Info size={20} className="text-gold-accent" />
+                  <div className="p-2 bg-terracotta/10 rounded-lg shrink-0">
+                    <Info size={20} className="text-terracotta" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-charcoal mb-1">Quick Tip</p>

@@ -64,7 +64,7 @@ def create_admin_plan(payload: SubscriptionPlanCreate, db: Database) -> dict:
 
 def update_admin_plan(code: str, payload: SubscriptionPlanUpdate, db: Database) -> dict:
     try:
-        plan = update_subscription_plan(code, {k: v for k, v in payload.dict().items() if v is not None})
+        plan = update_subscription_plan(code, payload.dict(exclude_unset=True))
         sync_subscription_plans_collection(db)
         return plan
     except KeyError:

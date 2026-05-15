@@ -227,7 +227,8 @@ export default function TryOnPage() {
     }
 
     // Block if daily limit reached
-    if (remainingTryons !== null && remainingTryons !== undefined && remainingTryons <= 0) {
+    const hasRemainingTryons = profile?.tryon_daily_limit === null || remainingTryons === null || remainingTryons === undefined || remainingTryons > 0;
+    if (!hasRemainingTryons) {
       setUpgradeModalType('tryon');
       setShowUpgradeModal(true);
       return;
@@ -441,7 +442,7 @@ export default function TryOnPage() {
                         }}
                         className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all capitalize ${
                           garmentType === type
-                            ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                            ? 'bg-white text-terracotta shadow-sm ring-1 ring-terracotta/10'
                             : 'text-warm-taupe hover:text-charcoal'
                         }`}
                       >
@@ -466,7 +467,7 @@ export default function TryOnPage() {
                       onClick={() => setDataSource('wardrobe')}
                       className={`flex-1 px-6 py-2 rounded-lg text-xs font-bold transition-all ${
                         dataSource === 'wardrobe'
-                          ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                          ? 'bg-white text-terracotta shadow-sm ring-1 ring-terracotta/10'
                           : 'text-warm-taupe hover:text-charcoal'
                       }`}
                     >
@@ -476,7 +477,7 @@ export default function TryOnPage() {
                       onClick={() => setDataSource('url')}
                       className={`flex-1 px-6 py-2 rounded-lg text-xs font-bold transition-all ${
                         dataSource === 'url'
-                          ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                          ? 'bg-white text-terracotta shadow-sm ring-1 ring-terracotta/10'
                           : 'text-warm-taupe hover:text-charcoal'
                       }`}
                     >
@@ -524,8 +525,8 @@ export default function TryOnPage() {
                                 whileHover="hover"
                                 onClick={() => setSelectedGarment(item)}
                                 className={`card-garment relative overflow-hidden group cursor-pointer transition-all ${selectedGarment?.id === item.id
-                                    ? 'ring-2 ring-gold-accent'
-                                    : 'hover:ring-1 hover:ring-gold-accent'
+                                    ? 'ring-2 ring-terracotta'
+                                    : 'hover:ring-1 hover:ring-terracotta'
                                   }`}
                               >
                                 {/* Image */}
@@ -567,7 +568,7 @@ export default function TryOnPage() {
                                       initial={{ scale: 0 }}
                                       animate={{ scale: 1 }}
                                       exit={{ scale: 0 }}
-                                      className="absolute top-2 right-2 w-6 h-6 bg-gold-accent rounded-full flex items-center justify-center text-cream"
+                                      className="absolute top-2 right-2 w-6 h-6 bg-terracotta rounded-full flex items-center justify-center text-cream"
                                     >
                                       ✓
                                     </motion.div>
@@ -606,7 +607,7 @@ export default function TryOnPage() {
                     {/* Loader Overlay */}
                     {isExtracting && (
                       <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 rounded-2xl flex flex-col items-center justify-center">
-                        <Loader2 className="w-8 h-8 text-gold-accent animate-spin mb-4" />
+                        <Loader2 className="w-8 h-8 text-terracotta animate-spin mb-4" />
                         <p className="text-charcoal font-bold">Extracting image, please wait...</p>
                       </div>
                     )}
@@ -617,7 +618,7 @@ export default function TryOnPage() {
                           placeholder="Paste Amazon or Flipkart product URL here..."
                           value={extractionUrl}
                           onChange={(e) => setExtractionUrl(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-warm-gray/30 focus:outline-none focus:border-gold-accent focus:ring-1 focus:ring-gold-accent text-charcoal placeholder-warm-taupe"
+                          className="w-full px-4 py-3 rounded-xl border border-warm-gray/30 focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta text-charcoal placeholder-warm-taupe"
                           disabled={isExtracting}
                         />
                         <p className="text-xs text-warm-taupe mt-2 ml-1 font-medium">
@@ -677,7 +678,7 @@ export default function TryOnPage() {
                         onClick={() => setGarmentPhotoType(opt.id)}
                         className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
                           garmentPhotoType === opt.id
-                            ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                            ? 'bg-white text-terracotta shadow-sm ring-1 ring-terracotta/10'
                             : 'text-warm-taupe hover:text-charcoal'
                         }`}
                       >
@@ -696,7 +697,7 @@ export default function TryOnPage() {
                     <h2 className="text-2xl font-bold text-charcoal mb-2">Your Photo (Optional)</h2>
                     <p className="text-warm-taupe">
                       If left empty, we'll use your 
-                      <span className="text-gold-accent font-semibold px-1">profile photo</span>.
+                      <span className="text-terracotta font-semibold px-1">profile photo</span>.
                     </p>
                   </div>
 
@@ -707,8 +708,8 @@ export default function TryOnPage() {
                     onDrop={handleDrop}
                     animate={dragActive ? { scale: 1.02 } : { scale: 1 }}
                     className={`flex-1 relative rounded-2xl border-2 border-dashed p-6 sm:p-8 transition-all cursor-pointer flex flex-col items-center justify-center ${dragActive
-                        ? 'border-gold-accent bg-gold-accent/5'
-                        : 'border-warm-gray/50 bg-ivory hover:border-gold-accent hover:bg-gold-accent/2'
+                        ? 'border-terracotta bg-terracotta/5'
+                        : 'border-warm-gray/50 bg-ivory hover:border-terracotta hover:bg-terracotta/5'
                       }`}
                   >
                     {userPhoto ? (
@@ -747,7 +748,7 @@ export default function TryOnPage() {
                             transition={{ duration: 2.5, repeat: Infinity }}
                             className="mb-4"
                           >
-                            <Upload size={40} className="text-gold-accent" />
+                            <Upload size={40} className="text-terracotta" />
                           </motion.div>
                           <h3 className="text-xl font-bold text-charcoal mb-1 text-center">
                             Drag your photo here
@@ -799,7 +800,7 @@ export default function TryOnPage() {
                       }}
                       disabled={isProcessing}
                       className={`flex-[1.2] flex items-center justify-center gap-2 font-semibold transition-all py-4 ${
-                        isProcessing ? 'bg-gold-accent/80 shadow-inner ring-2 ring-gold-accent/20 cursor-not-allowed opacity-80' : ''
+                        isProcessing ? 'bg-terracotta/80 shadow-inner ring-2 ring-terracotta/20 cursor-not-allowed opacity-80' : ''
                       }`}
                     >
                       {isProcessing ? (
@@ -822,8 +823,8 @@ export default function TryOnPage() {
                       onClick={() => setShowAdvanced(!showAdvanced)}
                       className={`flex items-center justify-between w-full px-5 py-4 rounded-xl transition-all border-2 ${
                         showAdvanced 
-                          ? 'bg-gold-accent border-gold-accent text-white shadow-luxury' 
-                          : 'bg-ivory border-warm-gray/30 text-charcoal hover:border-gold-accent'
+                          ? 'bg-terracotta border-terracotta text-white shadow-luxury' 
+                          : 'bg-ivory border-warm-gray/30 text-charcoal hover:border-terracotta'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -853,12 +854,12 @@ export default function TryOnPage() {
                               <p className="text-xs text-warm-taupe">Higher = better quality but slower. 30 is recommended.</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="w-12 py-1 px-2 bg-ivory border border-warm-gray/30 rounded text-center text-xs font-black text-gold-accent shadow-sm">
+                              <span className="w-12 py-1 px-2 bg-ivory border border-warm-gray/30 rounded text-center text-xs font-black text-terracotta shadow-sm">
                                 {numTimesteps}
                               </span>
                               <button 
                                 onClick={() => setNumTimesteps(30)}
-                                className="p-1 hover:bg-ivory rounded-full transition-all text-warm-taupe hover:text-gold-accent hover:rotate-180 duration-500"
+                                className="p-1 hover:bg-ivory rounded-full transition-all text-warm-taupe hover:text-terracotta hover:rotate-180 duration-500"
                                 title="Reset to default"
                               >
                                 <RefreshCcw size={14} />
@@ -874,7 +875,7 @@ export default function TryOnPage() {
                               step="1"
                               value={numTimesteps}
                               onChange={(e) => setNumTimesteps(parseInt(e.target.value))}
-                              className="flex-1 h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-gold-accent"
+                              className="flex-1 h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-[#c65d2c]"
                             />
                             <span className="text-[10px] font-black text-warm-taupe/30">50</span>
                           </div>
@@ -888,12 +889,12 @@ export default function TryOnPage() {
                               <p className="text-xs text-warm-taupe">How closely to follow garment details. 2.0 recommended.</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="w-12 py-1 px-2 bg-ivory border border-warm-gray/30 rounded text-center text-xs font-black text-gold-accent shadow-sm">
+                              <span className="w-12 py-1 px-2 bg-ivory border border-warm-gray/30 rounded text-center text-xs font-black text-terracotta shadow-sm">
                                 {guidanceScale.toFixed(1)}
                               </span>
                               <button 
                                 onClick={() => setGuidanceScale(2.0)}
-                                className="p-1 hover:bg-ivory rounded-full transition-all text-warm-taupe hover:text-gold-accent hover:rotate-180 duration-500"
+                                className="p-1 hover:bg-ivory rounded-full transition-all text-warm-taupe hover:text-terracotta hover:rotate-180 duration-500"
                                 title="Reset to default"
                               >
                                 <RefreshCcw size={14} />
@@ -909,7 +910,7 @@ export default function TryOnPage() {
                               step="0.1"
                               value={guidanceScale}
                               onChange={(e) => setGuidanceScale(parseFloat(e.target.value))}
-                              className="flex-1 h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-gold-accent"
+                              className="flex-1 h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-[#c65d2c]"
                             />
                             <span className="text-[10px] font-black text-warm-taupe/30">5.0</span>
                           </div>
@@ -923,12 +924,12 @@ export default function TryOnPage() {
                               id="seg-free"
                               checked={segmentationFree}
                               onChange={(e) => setSegmentationFree(e.target.checked)}
-                              className="w-5 h-5 rounded-md border-warm-gray text-gold-accent focus:ring-gold-accent cursor-pointer transition-all"
+                              className="w-5 h-5 rounded-md border-warm-gray text-terracotta focus:ring-terracotta cursor-pointer transition-all"
                             />
                           </div>
                           <label htmlFor="seg-free" className="cursor-pointer space-y-1">
                             <h3 className="text-sm font-bold text-charcoal tracking-wider">Segmentation-Free</h3>
-                            <p className="text-xs text-warm-taupe leading-relaxed">Preserves body features and allows unconstrained garment volume. <span className="text-gold-accent font-black">(Recommended)</span></p>
+                            <p className="text-xs text-warm-taupe leading-relaxed">Preserves body features and allows unconstrained garment volume. <span className="text-terracotta font-black">(Recommended)</span></p>
                           </label>
                         </div>
                       </div>
@@ -967,7 +968,7 @@ export default function TryOnPage() {
               >
                 <div className="absolute inset-0 bg-gradient-sage/20 rounded-full blur-2xl" />
                 <div className="absolute inset-4 border-2 border-warm-gray/30 rounded-full" />
-                <div className="absolute inset-8 border-2 border-sage rounded-full border-t-gold-accent border-r-powder-blue" />
+                <div className="absolute inset-8 border-2 border-sage rounded-full border-t-terracotta border-r-powder-blue" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-4xl font-bold text-gradient-gold">✨</div>
                 </div>
@@ -990,7 +991,7 @@ export default function TryOnPage() {
                   <motion.span
                     animate={{ scale: [1, 1.1, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
-                    className="text-sm font-bold text-gold-accent"
+                    className="text-sm font-bold text-terracotta"
                   >
                     {processingProgress}%
                   </motion.span>
@@ -1100,7 +1101,7 @@ export default function TryOnPage() {
                     
                     {/* PREMIUM LABEL */}
                     <div className="absolute top-4 left-4 z-20 flex gap-2">
-                      <div className="px-4 py-1.5 rounded-full bg-white/80 backdrop-blur-md border border-gold-accent/20 text-gold-accent shadow-luxury">
+                      <div className="px-4 py-1.5 rounded-full bg-white/80 backdrop-blur-md border border-terracotta/20 text-terracotta shadow-luxury">
                         <p className="text-[10px] font-black tracking-[0.2em]">VIRTUAL RESULT</p>
                       </div>
                     </div>
@@ -1108,7 +1109,7 @@ export default function TryOnPage() {
                     {/* MAXIMIZE BUTTON */}
                     <button
                       onClick={() => setSelectedImage(resultImageUrl)}
-                      className="absolute top-4 right-4 p-2.5 rounded-full bg-white/80 backdrop-blur-md border border-gold-accent/20 text-gold-accent shadow-luxury hover:bg-gold-accent hover:text-white transition-all z-20"
+                      className="absolute top-4 right-4 p-2.5 rounded-full bg-white/80 backdrop-blur-md border border-terracotta/20 text-terracotta shadow-luxury hover:bg-terracotta hover:text-white transition-all z-20"
                       title="View Fullscreen"
                     >
                       <Maximize2 size={16} />
@@ -1224,8 +1225,8 @@ export default function TryOnPage() {
             >
               <div className="h-2 bg-gradient-gold" />
               <div className="p-8">
-                <div className="w-16 h-16 bg-gold-accent/10 rounded-full flex items-center justify-center mb-6 mx-auto">
-                  <Crown size={32} className="text-gold-accent" />
+                <div className="w-16 h-16 bg-terracotta/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+                  <Crown size={32} className="text-terracotta" />
                 </div>
 
                 <h3 className="text-2xl font-bold text-charcoal text-center mb-3">

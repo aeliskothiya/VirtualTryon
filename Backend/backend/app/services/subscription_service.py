@@ -53,14 +53,14 @@ def load_subscription_plans_from_collection(db: Database) -> None:
             "description": plan.get("description", default_plan.get("description")),
             "price_inr": float(plan.get("price_inr", default_plan.get("price_inr", 0.0))),
             "sort_order": int(plan.get("sort_order", default_plan.get("sort_order", 0))),
-            "wardrobe_limit": int(plan.get("wardrobe_limit", default_plan.get("wardrobe_limit", 0))),
-            "tryon_daily_limit": int(plan.get("tryon_daily_limit", default_plan.get("tryon_daily_limit", 0))),
+            "wardrobe_limit": plan.get("wardrobe_limit", default_plan.get("wardrobe_limit")),
+            "tryon_daily_limit": plan.get("tryon_daily_limit", default_plan.get("tryon_daily_limit")),
             "recommendation_daily_limit": plan.get(
                 "recommendation_daily_limit",
                 default_plan.get("recommendation_daily_limit"),
             ),
-            "saved_tryon_monthly_limit": int(
-                plan.get("saved_tryon_monthly_limit", default_plan.get("saved_tryon_monthly_limit", 0))
+            "saved_tryon_monthly_limit": plan.get(
+                "saved_tryon_monthly_limit", default_plan.get("saved_tryon_monthly_limit")
             ),
             "is_default": bool(plan.get("is_default", default_plan.get("is_default", False))),
             "active": plan.get("active", default_plan.get("active", True)),
@@ -237,10 +237,13 @@ def get_remaining_recommendations_today(db: Database, user_id: str, user: dict[s
     return max(limit - used, 0)
 
 
-def get_remaining_wardrobe_slots(db: Database, user: dict[str, Any]) -> int:
+def get_remaining_wardrobe_slots(db: Database, user: dict[str, Any]) -> Optional[int]:
     plan = get_subscription_plan(user)
+    limit = plan["wardrobe_limit"]
+    if limit is None:
+        return None
     active_count = get_active_wardrobe_count(db, str(user["_id"]))
-    return max(plan["wardrobe_limit"] - active_count, 0)
+    return max(limit - active_count, 0)
 
 
 def get_user_quota_snapshot(db: Database, user: dict[str, Any]) -> dict[str, Any]:
@@ -263,7 +266,7 @@ def get_user_quota_snapshot(db: Database, user: dict[str, Any]) -> dict[str, Any
         "subscription_plan": plan["code"],
         "wardrobe_limit": plan["wardrobe_limit"],
         "wardrobe_used": wardrobe_used,
-        "wardrobe_remaining": max(plan["wardrobe_limit"] - wardrobe_used, 0),
+        "wardrobe_remaining": None if plan["wardrobe_limit"] is None else max(plan["wardrobe_limit"] - wardrobe_used, 0),
         "tryon_daily_limit": tryon_limit,
         "tryons_used_today": tryons_used_today,
         "remaining_tryons_today": 0 if is_expired else None if tryon_limit is None else max(tryon_limit - tryons_used_today, 0),
@@ -274,7 +277,7 @@ def get_user_quota_snapshot(db: Database, user: dict[str, Any]) -> dict[str, Any
         else max(recommendation_limit - recommendations_used_today, 0),
         "saved_tryon_monthly_limit": saved_tryon_limit,
         "saved_tryons_used_this_month": saved_tryons_used_this_month,
-        "remaining_saved_tryons_this_month": max(saved_tryon_limit - saved_tryons_used_this_month, 0),
+        "remaining_saved_tryons_this_month": None if saved_tryon_limit is None else max(saved_tryon_limit - saved_tryons_used_this_month, 0),
         "subscription_cycle_start": cycle_start,
         "subscription_cycle_end": cycle_end,
         "subscription_expires_at": cycle_end,
@@ -285,11 +288,14 @@ def get_user_quota_snapshot(db: Database, user: dict[str, Any]) -> dict[str, Any
 
 def ensure_wardrobe_capacity(db: Database, user: dict[str, Any]) -> None:
     plan = get_subscription_plan(user)
+    limit = plan["wardrobe_limit"]
+    if limit is None:
+        return
     active_count = get_active_wardrobe_count(db, str(user["_id"]))
-    if active_count >= plan["wardrobe_limit"]:
+    if active_count >= limit:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Your {plan['name']} monthly plan allows {plan['wardrobe_limit']} wardrobe items. Please buy or upgrade a plan to continue.",
+            detail=f"Your {plan['name']} monthly plan allows {limit} wardrobe items. Please buy or upgrade a plan to continue.",
         )
 
 
@@ -339,6 +345,8 @@ def should_save_tryon_output(db: Database, user: dict[str, Any]) -> bool:
 
     plan = get_subscription_plan(user)
     limit = plan["saved_tryon_monthly_limit"]
+    if limit is None:
+        return True
     if limit == 0:
         return False
     saved_count = get_saved_tryon_count_this_month(db, user)

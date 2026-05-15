@@ -251,7 +251,7 @@ export default function WardrobeManagementPage() {
             transition={{ duration: 3, repeat: Infinity }}
             className="p-3 bg-ivory rounded-lg"
           >
-            <Sparkles size={24} className="text-gold-accent" />
+            <Sparkles size={24} className="text-terracotta" />
           </motion.div>
         </div>
       </motion.header>
@@ -273,8 +273,8 @@ export default function WardrobeManagementPage() {
               onDrop={handleDrop}
               animate={dragActive ? { scale: 1.02 } : { scale: 1 }}
               className={`lg:col-span-2 relative rounded-2xl border-2 border-dashed p-6 sm:p-8 transition-all cursor-pointer ${dragActive
-                  ? 'border-gold-accent bg-gold-accent/5'
-                  : 'border-warm-gray/50 bg-ivory hover:border-gold-accent hover:bg-gold-accent/2'
+                  ? 'border-terracotta bg-terracotta/5'
+                  : 'border-warm-gray/50 bg-ivory hover:border-terracotta hover:bg-terracotta/2'
                 }`}
             >
               {previewFiles.length > 0 ? (
@@ -347,7 +347,7 @@ export default function WardrobeManagementPage() {
                       transition={{ duration: 2.5, repeat: Infinity }}
                       className="mb-4"
                     >
-                      <Upload size={40} className="text-gold-accent" />
+                      <Upload size={40} className="text-terracotta" />
                     </motion.div>
                     <h3 className="text-xl font-semibold text-charcoal mb-1 text-center">
                       Add to your collection
@@ -392,10 +392,10 @@ export default function WardrobeManagementPage() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className={`w-full py-4 px-6 rounded-xl font-semibold border-2 transition-all flex items-center justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold-accent/20 ${
+                    className={`w-full py-4 px-6 rounded-xl font-semibold border-2 transition-all flex items-center justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-terracotta/20 ${
                       !uploadType 
                         ? 'border-warm-gray bg-white text-warm-taupe italic' 
-                        : 'border-gold-accent bg-ivory text-charcoal'
+                        : 'border-terracotta bg-ivory text-charcoal'
                     }`}
                   >
                     <span>
@@ -440,7 +440,7 @@ export default function WardrobeManagementPage() {
                               setIsDropdownOpen(false);
                             }}
                             className={`w-full px-6 py-4 flex items-center gap-3 hover:bg-ivory transition-colors text-left font-medium ${
-                              uploadType === opt.value ? 'bg-gold-accent/10 text-gold-accent' : 'text-charcoal'
+                              uploadType === opt.value ? 'bg-terracotta/10 text-terracotta' : 'text-charcoal'
                             }`}
                           >
                             <span>{opt.label}</span>
@@ -489,7 +489,7 @@ export default function WardrobeManagementPage() {
                   }}
                   className={`px-6 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     activeFilter === f.value
-                      ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                      ? 'bg-white text-terracotta shadow-sm ring-1 ring-terracotta/10'
                       : 'text-warm-taupe hover:text-charcoal'
                   }`}
                 >
@@ -513,7 +513,7 @@ export default function WardrobeManagementPage() {
                   }}
                   className={`px-6 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     statusFilter === f.value
-                      ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                      ? 'bg-white text-terracotta shadow-sm ring-1 ring-terracotta/10'
                       : 'text-warm-taupe hover:text-charcoal'
                   }`}
                 >
@@ -529,7 +529,7 @@ export default function WardrobeManagementPage() {
               whileTap={{ scale: 0.95 }}
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg transition-all ${viewMode === 'grid'
-                  ? 'bg-gold-accent text-cream'
+                  ? 'bg-terracotta text-cream'
                   : 'bg-ivory text-charcoal hover:bg-beige'
                 }`}
               title="Grid view"
@@ -541,7 +541,7 @@ export default function WardrobeManagementPage() {
               whileTap={{ scale: 0.95 }}
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-lg transition-all ${viewMode === 'list'
-                  ? 'bg-gold-accent text-cream'
+                  ? 'bg-terracotta text-cream'
                   : 'bg-ivory text-charcoal hover:bg-beige'
                 }`}
               title="List view"
@@ -596,7 +596,7 @@ export default function WardrobeManagementPage() {
                   whileHover="hover"
                   className="group"
                 >
-                  <div className={`card-garment relative overflow-hidden transition-all hover:ring-1 hover:ring-gold-accent ${item.active_status === 'inactive' ? 'opacity-70 grayscale-[0.3]' : ''
+                  <div className={`card-garment relative overflow-hidden transition-all hover:ring-1 hover:ring-terracotta ${item.active_status === 'inactive' ? 'opacity-70 grayscale-[0.3]' : ''
                     } ${viewMode === 'list' ? 'flex gap-4 items-center p-2' : 'space-y-4'
                     }`}>
                     {/* IMAGE */}
@@ -674,8 +674,8 @@ export default function WardrobeManagementPage() {
                       {/* EMBEDDING STATUS */}
                       <div className="mt-2 mb-3">
                         <div className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${item.embedding_done ? 'bg-sage' : 'bg-gold-accent animate-pulse'}`} />
-                          <span className={`text-[10px] font-medium ${item.embedding_done ? 'text-sage' : 'text-gold-accent'}`}>
+                          <div className={`w-2 h-2 rounded-full ${item.embedding_done ? 'bg-sage' : 'bg-terracotta animate-pulse'}`} />
+                          <span className={`text-[10px] font-medium ${item.embedding_done ? 'text-sage' : 'text-terracotta'}`}>
                             {item.embedding_done ? 'AI Ready' : 'AI Processing'}
                           </span>
                         </div>

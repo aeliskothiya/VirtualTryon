@@ -29,7 +29,7 @@ export default function AdminSubscriptionsPage() {
   const [showToggleModal, setShowToggleModal] = useState(false);
   const [planToToggle, setPlanToToggle] = useState(null);
   
-  const [formData, setFormData] = useState({
+  const initialFormData = {
     name: '',
     code: '',
     price_inr: 0,
@@ -40,7 +40,9 @@ export default function AdminSubscriptionsPage() {
     saved_tryon_monthly_limit: 5,
     is_default: false,
     active: true
-  });
+  };
+
+  const [formData, setFormData] = useState(initialFormData);
 
   useEffect(() => {
     fetchPlans();
@@ -52,11 +54,21 @@ export default function AdminSubscriptionsPage() {
       const payload = {
         ...formData,
         price_inr: parseFloat(formData.price_inr || 0),
-        wardrobe_limit: parseInt(formData.wardrobe_limit || 0),
-        tryon_daily_limit: parseInt(formData.tryon_daily_limit || 0),
-        recommendation_daily_limit: formData.recommendation_daily_limit === '' ? null : parseInt(formData.recommendation_daily_limit || 0),
-        saved_tryon_monthly_limit: parseInt(formData.saved_tryon_monthly_limit || 0),
+        wardrobe_limit: formData.wardrobe_limit === '' || formData.wardrobe_limit === null ? null : parseInt(formData.wardrobe_limit),
+        tryon_daily_limit: formData.tryon_daily_limit === '' || formData.tryon_daily_limit === null ? null : parseInt(formData.tryon_daily_limit),
+        recommendation_daily_limit: formData.recommendation_daily_limit === '' || formData.recommendation_daily_limit === null ? null : parseInt(formData.recommendation_daily_limit),
+        saved_tryon_monthly_limit: formData.saved_tryon_monthly_limit === '' || formData.saved_tryon_monthly_limit === null ? null : parseInt(formData.saved_tryon_monthly_limit),
       };
+
+      if (payload.price_inr < 0 || 
+          (payload.wardrobe_limit !== null && payload.wardrobe_limit < 0) ||
+          (payload.tryon_daily_limit !== null && payload.tryon_daily_limit < 0) ||
+          (payload.recommendation_daily_limit !== null && payload.recommendation_daily_limit < 0) ||
+          (payload.saved_tryon_monthly_limit !== null && payload.saved_tryon_monthly_limit < 0)
+      ) {
+        showError('Negative values are not allowed for limits or price');
+        return;
+      }
 
       if (editingPlan) {
         await updatePlan(editingPlan.code, payload);
@@ -66,18 +78,7 @@ export default function AdminSubscriptionsPage() {
         showSuccess('Plan created successfully');
       }
 
-      setFormData({ 
-        name: '', 
-        code: '', 
-        price_inr: 0, 
-        description: '', 
-        wardrobe_limit: 10, 
-        tryon_daily_limit: 5, 
-        recommendation_daily_limit: 10, 
-        saved_tryon_monthly_limit: 5,
-        is_default: false,
-        active: true
-      });
+      setFormData(initialFormData);
       setEditingPlan(null);
       setShowPlanForm(false);
       await fetchPlans();
@@ -108,16 +109,16 @@ export default function AdminSubscriptionsPage() {
   const handleEditPlan = (plan) => {
     setEditingPlan(plan);
     setFormData({
-      name: plan.name,
-      code: plan.code,
-      price_inr: plan.price_inr,
+      name: plan.name || '',
+      code: plan.code || '',
+      price_inr: plan.price_inr || 0,
       description: plan.description || '',
-      wardrobe_limit: plan.wardrobe_limit,
-      tryon_daily_limit: plan.tryon_daily_limit,
-      recommendation_daily_limit: plan.recommendation_daily_limit,
-      saved_tryon_monthly_limit: plan.saved_tryon_monthly_limit,
-      is_default: plan.is_default,
-      active: plan.active
+      wardrobe_limit: plan.wardrobe_limit ?? null,
+      tryon_daily_limit: plan.tryon_daily_limit ?? null,
+      recommendation_daily_limit: plan.recommendation_daily_limit ?? null,
+      saved_tryon_monthly_limit: plan.saved_tryon_monthly_limit ?? null,
+      is_default: !!plan.is_default,
+      active: !!plan.active
     });
     setShowPlanForm(true);
   };
@@ -158,18 +159,7 @@ export default function AdminSubscriptionsPage() {
               onClick={() => {
                 setShowPlanForm(!showPlanForm);
                 setEditingPlan(null);
-                setFormData({
-                  name: '',
-                  code: '',
-                  price_inr: 0,
-                  description: '',
-                  wardrobe_limit: 10,
-                  tryon_daily_limit: 5,
-                  recommendation_daily_limit: 10,
-                  saved_tryon_monthly_limit: 5,
-                  is_default: false,
-                  active: true
-                });
+                setFormData(initialFormData);
               }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -236,6 +226,7 @@ export default function AdminSubscriptionsPage() {
                       <input
                         type="number"
                         placeholder="0"
+                        min="0"
                         value={formData.price_inr}
                         onChange={(e) => setFormData({ ...formData, price_inr: e.target.value })}
                         className="input-field"
@@ -265,40 +256,93 @@ export default function AdminSubscriptionsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-charcoal mb-2">Wardrobe Limit</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-semibold text-charcoal">Wardrobe Limit</label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.wardrobe_limit === null}
+                            onChange={(e) => setFormData({ ...formData, wardrobe_limit: e.target.checked ? null : 10 })}
+                            className="rounded border-warm-gray/30 text-terracotta focus:ring-terracotta w-3 h-3"
+                          />
+                          <span className="text-[10px] font-bold text-warm-taupe uppercase">Unlimited</span>
+                        </label>
+                      </div>
                       <input
                         type="number"
-                        value={formData.wardrobe_limit}
+                        min="0"
+                        disabled={formData.wardrobe_limit === null}
+                        value={formData.wardrobe_limit === null ? '' : formData.wardrobe_limit}
                         onChange={(e) => setFormData({ ...formData, wardrobe_limit: e.target.value })}
-                        className="input-field"
+                        className={`input-field ${formData.wardrobe_limit === null ? 'bg-warm-gray/5 opacity-50' : ''}`}
+                        placeholder="∞"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-charcoal mb-2">Daily Try-on Limit</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-semibold text-charcoal">Daily Try-on</label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.tryon_daily_limit === null}
+                            onChange={(e) => setFormData({ ...formData, tryon_daily_limit: e.target.checked ? null : 5 })}
+                            className="rounded border-warm-gray/30 text-terracotta focus:ring-terracotta w-3 h-3"
+                          />
+                          <span className="text-[10px] font-bold text-warm-taupe uppercase">Unlimited</span>
+                        </label>
+                      </div>
                       <input
                         type="number"
-                        value={formData.tryon_daily_limit}
+                        disabled={formData.tryon_daily_limit === null}
+                        value={formData.tryon_daily_limit === null ? '' : formData.tryon_daily_limit}
                         onChange={(e) => setFormData({ ...formData, tryon_daily_limit: e.target.value })}
-                        className="input-field"
+                        className={`input-field ${formData.tryon_daily_limit === null ? 'bg-warm-gray/5 opacity-50' : ''}`}
+                        placeholder="∞"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-charcoal mb-2">Daily Rec Limit</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-semibold text-charcoal">Daily Recs</label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.recommendation_daily_limit === null}
+                            onChange={(e) => setFormData({ ...formData, recommendation_daily_limit: e.target.checked ? null : 10 })}
+                            className="rounded border-warm-gray/30 text-terracotta focus:ring-terracotta w-3 h-3"
+                          />
+                          <span className="text-[10px] font-bold text-warm-taupe uppercase">Unlimited</span>
+                        </label>
+                      </div>
                       <input
                         type="number"
-                        value={formData.recommendation_daily_limit}
+                        disabled={formData.recommendation_daily_limit === null}
+                        value={formData.recommendation_daily_limit === null ? '' : formData.recommendation_daily_limit}
                         onChange={(e) => setFormData({ ...formData, recommendation_daily_limit: e.target.value })}
-                        className="input-field"
+                        className={`input-field ${formData.recommendation_daily_limit === null ? 'bg-warm-gray/5 opacity-50' : ''}`}
+                        placeholder="∞"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-charcoal mb-2">Saved Try-ons/Mo</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-semibold text-charcoal">Saved Try-ons/Mo</label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.saved_tryon_monthly_limit === null}
+                            onChange={(e) => setFormData({ ...formData, saved_tryon_monthly_limit: e.target.checked ? null : 5 })}
+                            className="rounded border-warm-gray/30 text-terracotta focus:ring-terracotta w-3 h-3"
+                          />
+                          <span className="text-[10px] font-bold text-warm-taupe uppercase">Unlimited</span>
+                        </label>
+                      </div>
                       <input
                         type="number"
-                        value={formData.saved_tryon_monthly_limit}
+                        disabled={formData.saved_tryon_monthly_limit === null}
+                        value={formData.saved_tryon_monthly_limit === null ? '' : formData.saved_tryon_monthly_limit}
                         onChange={(e) => setFormData({ ...formData, saved_tryon_monthly_limit: e.target.value })}
-                        className="input-field"
+                        className={`input-field ${formData.saved_tryon_monthly_limit === null ? 'bg-warm-gray/5 opacity-50' : ''}`}
+                        placeholder="∞"
                       />
                     </div>
                   </div>
@@ -389,19 +433,19 @@ export default function AdminSubscriptionsPage() {
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <div className="bg-cream/50 p-2 rounded-lg border border-warm-gray/10">
                     <p className="text-[10px] text-warm-taupe uppercase font-semibold">Wardrobe</p>
-                    <p className="text-sm font-bold text-charcoal">{plan.wardrobe_limit} items</p>
+                    <p className="text-sm font-bold text-charcoal">{plan.wardrobe_limit === null ? '∞' : plan.wardrobe_limit}</p>
                   </div>
                   <div className="bg-cream/50 p-2 rounded-lg border border-warm-gray/10">
                     <p className="text-[10px] text-warm-taupe uppercase font-semibold">Daily Try-on</p>
-                    <p className="text-sm font-bold text-charcoal">{plan.tryon_daily_limit}</p>
+                    <p className="text-sm font-bold text-charcoal">{plan.tryon_daily_limit === null ? '∞' : plan.tryon_daily_limit}</p>
                   </div>
                   <div className="bg-cream/50 p-2 rounded-lg border border-warm-gray/10">
                     <p className="text-[10px] text-warm-taupe uppercase font-semibold">Daily Rec</p>
-                    <p className="text-sm font-bold text-charcoal">{plan.recommendation_daily_limit ?? 'Unlimited'}</p>
+                    <p className="text-sm font-bold text-charcoal">{plan.recommendation_daily_limit === null ? '∞' : plan.recommendation_daily_limit}</p>
                   </div>
                   <div className="bg-cream/50 p-2 rounded-lg border border-warm-gray/10">
                     <p className="text-[10px] text-warm-taupe uppercase font-semibold">Saved/Mo</p>
-                    <p className="text-sm font-bold text-charcoal">{plan.saved_tryon_monthly_limit === 0 ? 'Preview Only' : plan.saved_tryon_monthly_limit}</p>
+                    <p className="text-sm font-bold text-charcoal">{plan.saved_tryon_monthly_limit === null ? '∞' : plan.saved_tryon_monthly_limit}</p>
                   </div>
                 </div>
 

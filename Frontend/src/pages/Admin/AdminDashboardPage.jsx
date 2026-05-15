@@ -185,7 +185,7 @@ export default function AdminDashboardPage() {
               <button 
                 onClick={() => setChartFilter('monthly')}
                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-                  chartFilter === 'monthly' ? 'bg-gold-accent text-white shadow-md' : 'text-warm-taupe hover:bg-warm-gray/10'
+                  chartFilter === 'monthly' ? 'bg-terracotta text-white shadow-md' : 'text-warm-taupe hover:bg-warm-gray/10'
                 }`}
               >
                 Monthly
@@ -193,7 +193,7 @@ export default function AdminDashboardPage() {
               <button 
                 onClick={() => setChartFilter('yearly')}
                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-                  chartFilter === 'yearly' ? 'bg-gold-accent text-white shadow-md' : 'text-warm-taupe hover:bg-warm-gray/10'
+                  chartFilter === 'yearly' ? 'bg-terracotta text-white shadow-md' : 'text-warm-taupe hover:bg-warm-gray/10'
                 }`}
               >
                 Yearly
@@ -251,7 +251,7 @@ export default function AdminDashboardPage() {
                       {chartData.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
-                          fill={index === chartData.length - 1 ? '#C5A059' : '#8A9A5B'} 
+                          fill={index === chartData.length - 1 ? '#c65d2c' : '#8A9A5B'} 
                           fillOpacity={0.8}
                         />
                       ))}
@@ -266,36 +266,56 @@ export default function AdminDashboardPage() {
             {/* Subscription Distribution */}
             <motion.div variants={itemVariants} className="card-luxury">
               <h2 className="text-lg font-bold text-charcoal mb-6">Subscription Plans</h2>
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={overview?.subscription_distribution || []}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={80}
-                      outerRadius={110}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {(overview?.subscription_distribution || []).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={['#8A9A5B', '#C5A059', '#6B7280', '#9CA3AF'][index % 4]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex justify-center gap-4 mt-4">
-                  {(overview?.subscription_distribution || []).map((entry, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ['#8A9A5B', '#C5A059', '#6B7280', '#9CA3AF'][index % 4] }}></div>
-                      <span className="text-xs font-bold text-warm-taupe uppercase">{entry.name}</span>
+              {(() => {
+                const distData = overview?.subscription_distribution || [];
+                const PLAN_COLORS = ['#c65d2c', '#8A9A5B', '#C5A059', '#7a8ba3', '#947585'];
+                const total = distData.reduce((sum, d) => sum + (d.value || 0), 0);
+                const isSingle = distData.length <= 1;
+                return (
+                  <div>
+                    <div className="h-[240px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={distData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={70}
+                            outerRadius={105}
+                            paddingAngle={isSingle ? 0 : 4}
+                            dataKey="value"
+                            startAngle={90}
+                            endAngle={-270}
+                          >
+                            {distData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={PLAN_COLORS[index % PLAN_COLORS.length]} strokeWidth={0} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                            formatter={(val, name) => [`${val} users (${total > 0 ? Math.round((val/total)*100) : 0}%)`, name]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    {distData.length > 0 ? (
+                      <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-3 px-2">
+                        {distData.map((entry, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: PLAN_COLORS[index % PLAN_COLORS.length] }} />
+                            <span className="text-xs font-bold text-charcoal uppercase">{entry.name}</span>
+                            <span className="text-xs text-warm-taupe">
+                              {entry.value} ({total > 0 ? Math.round((entry.value/total)*100) : 0}%)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs text-warm-taupe mt-4">No subscription data yet</p>
+                    )}
+                  </div>
+                );
+              })()}
             </motion.div>
 
             {/* Usage Trends */}
