@@ -73,7 +73,17 @@ def startup_event():
     logger.info("Registered tryon routes: %s", tryon_routes)
     ensure_media_directories()
     init_indexes()
-    load_subscription_plans_from_collection(get_db())
+    
+    # Clean up any jobs that were left in 'processing' state due to server crash/restart
+    db = get_db()
+    result = db.tryon_jobs.update_many(
+        {"status": "processing"},
+        {"$set": {"status": "cancelled", "error_message": "Server restarted, job cancelled."}}
+    )
+    if result.modified_count > 0:
+        logger.warning(f"Cleaned up {result.modified_count} stuck processing jobs on startup.")
+        
+    load_subscription_plans_from_collection(db)
 
 
 @app.get("/")

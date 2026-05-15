@@ -61,15 +61,15 @@ body {
    ============================================ */
 
 .glass {
-  @apply bg-glass backdrop-blur-md border border-warm-gray/30;
+  @apply bg-white border border-warm-gray/30 shadow-luxury;
 }
 
 .glass-lg {
-  @apply bg-glass backdrop-blur-lg border border-warm-gray/40;
+  @apply bg-white border border-warm-gray/40 shadow-luxury-lg;
 }
 
 .glass-subtle {
-  @apply bg-white/30 backdrop-blur-sm border border-warm-gray/20;
+  @apply bg-white border border-warm-gray/20;
 }
 
 /* Premium shadows */
@@ -188,6 +188,10 @@ body {
 
 .card-luxury {
   @apply bg-ivory border border-beige rounded-xl p-8 shadow-soft transition-all duration-300 hover:shadow-luxury;
+}
+
+.card-garment {
+  @apply bg-ivory border border-beige rounded-lg p-2 shadow-soft transition-all duration-300 hover:shadow-luxury;
 }
 
 .card-glass {

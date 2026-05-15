@@ -8,12 +8,22 @@ export const createTryOn = (formData) => {
 };
 
 // Get try-on history
-export const getTryOnHistory = () => {
-  return API.get('/tryon/history');
+export const getTryOnHistory = (params = {}) => {
+  return API.get('/tryon/history', { params });
+};
+
+// Save a try-on result
+export const saveTryOnResult = (jobId) => {
+  return API.post(`/tryon/${jobId}/save`);
+};
+
+// Cancel an ongoing try-on job
+export const cancelTryOn = (jobId) => {
+  return API.post(`/tryon/${jobId}/cancel`);
 };
 
 // Poll for try-on status
-export const pollTryOnStatus = async (jobId, maxWait = 300000) => {
+export const pollTryOnStatus = async (jobId, maxWait = 3600000) => {
   const pollInterval = parseInt(import.meta.env.VITE_TRYON_POLLING_INTERVAL || '2000');
   const startTime = Date.now();
 

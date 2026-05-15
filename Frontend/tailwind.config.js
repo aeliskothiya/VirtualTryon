@@ -21,7 +21,7 @@ module.exports = {
         'rose-dust': '#947585',       // Darker rose
       },
       backgroundColor: {
-        'glass': 'rgba(255, 255, 255, 0.4)',
+        'glass': 'rgba(255, 255, 255, 1)',
         'glass-dark': 'rgba(0, 0, 0, 0.04)',
       },
       backdropBlur: {

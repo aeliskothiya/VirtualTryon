@@ -7,7 +7,7 @@ export default function ProtectedRoute({ children, isAdmin = false, requireFullR
     const { isAuthenticated: adminAuthenticated } = useAdmin();
 
     if (!adminAuthenticated) {
-      return <Navigate to="/admin/login" replace />;
+      return <Navigate to="/login" replace />;
     }
 
     return children;

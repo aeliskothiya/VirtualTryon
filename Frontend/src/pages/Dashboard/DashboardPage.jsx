@@ -7,6 +7,7 @@ import { formatDate } from '@/utils/validators';
 import { normalizeImageUrl, getFallbackImage } from '@/utils/imageLoader';
 import { AnimatedButton } from '@/components/common/MicroInteractions';
 import { AnimatedStaggerContainer, AnimatedStaggerItem, ScrollAnimationWrapper } from '@/components/common/AnimationComponents';
+import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const { showSuccess, showError } = useNotification();
   const [animateCards, setAnimateCards] = useState(false);
   const [imageLoadState, setImageLoadState] = useState({});
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleImageLoad = (id) => {
     setImageLoadState(prev => ({ ...prev, [id]: 'loaded' }));
@@ -40,11 +42,9 @@ export default function DashboardPage() {
   }, [authUser?.id, fetchProfile, showError]);
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      logout();
-      showSuccess('Logged out successfully');
-      navigate('/login');
-    }
+    logout();
+    showSuccess('Logged out successfully');
+    navigate('/login');
   };
 
   const containerVariants = {
@@ -62,37 +62,46 @@ export default function DashboardPage() {
 
   const quotaCards = profile
     ? [
-        {
-          label: 'Wardrobe Items',
-          current: profile.wardrobe_used || 0,
-          total: profile.wardrobe_limit,
-          icon: ShoppingBag,
-          color: 'bg-powder-blue',
-          gradient: 'gradient-powder',
-        },
-        {
-          label: 'Try-Ons Today',
-          current: profile.tryons_used_today || 0,
-          total: profile.tryon_daily_limit,
-          icon: Zap,
-          color: 'bg-sage',
-          gradient: 'gradient-sage',
-        },
-        {
-          label: 'AI Recommendations',
-          current: profile.recommendations_used_today || 0,
-          total: profile.recommendation_daily_limit,
-          icon: Wand2,
-          color: 'bg-rose-dust',
-          gradient: 'gradient-rose',
-        },
-      ]
+      {
+        label: 'Wardrobe Items',
+        current: profile.wardrobe_used || 0,
+        total: profile.wardrobe_limit,
+        icon: ShoppingBag,
+        color: 'bg-powder-blue',
+        gradient: 'gradient-powder',
+      },
+      {
+        label: 'Try-Ons Today',
+        current: profile.tryons_used_today || 0,
+        total: profile.tryon_daily_limit,
+        icon: Zap,
+        color: 'bg-sage',
+        gradient: 'gradient-sage',
+      },
+      {
+        label: 'AI Recommendations',
+        current: profile.recommendations_used_today || 0,
+        total: profile.recommendation_daily_limit,
+        icon: Wand2,
+        color: 'bg-rose-dust',
+        gradient: 'gradient-rose',
+      },
+      {
+        label: 'Saved Try-Ons',
+        current: profile.saved_tryons_used_this_month || 0,
+        total: profile.saved_tryon_monthly_limit,
+        icon: TrendingUp,
+        color: 'bg-gold-accent',
+        gradient: 'gradient-gold',
+      },
+    ]
     : [];
 
   const actionButtons = [
     { label: 'My Wardrobe', path: '/wardrobe', icon: ShoppingBag, bg: 'gradient-powder' },
     { label: 'Try-On Now', path: '/tryon', icon: Zap, bg: 'gradient-sage' },
     { label: 'Get Recommendations', path: '/recommendations', icon: Wand2, bg: 'gradient-rose' },
+    { label: 'Saved Collection', path: '/saved-tryons', icon: TrendingUp, bg: 'gradient-gold' },
   ];
 
   return (
@@ -101,7 +110,7 @@ export default function DashboardPage() {
       <motion.header
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 bg-cream/80 backdrop-blur-md border-b border-warm-gray/30 px-4 sm:px-8 py-1"
+        className="sticky top-0 z-40 bg-white border-b border-warm-gray/30 px-4 sm:px-8 py-1"
       >
         <div className="container-luxury flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -229,7 +238,7 @@ export default function DashboardPage() {
           >
             <div className="mb-2">
               <h2 className="text-xl sm:text-2xl font-bold text-charcoal mb-1">
-                Your Usage Today
+                Your Usage
               </h2>
               <p className="text-xs sm:text-sm text-warm-taupe">Track your daily activity and limits</p>
             </div>
@@ -238,7 +247,7 @@ export default function DashboardPage() {
               variants={containerVariants}
               initial="hidden"
               animate="visible"
-              className="grid grid-cols-1 md:grid-cols-3 gap-2"
+              className="grid grid-cols-2 md:grid-cols-4 gap-2"
             >
               {quotaCards.map((quota, i) => {
                 const Icon = quota.icon;
@@ -282,7 +291,7 @@ export default function DashboardPage() {
                         <p className="text-[11px] text-warm-taupe">
                           {quota.total === null || quota.total === undefined ? 'Unlimited access' : `${Math.round(percentage)}% used`}
                           {isMaxed && <span className="ml-2 text-rose-dust font-semibold">Maxed</span>}
-                          {profile?.is_subscription_expired && quota.label !== 'Wardrobe Items' && <span className="ml-2 text-rose-dust font-semibold">🔒 Expired</span>}
+                          {profile?.is_subscription_expired && <span className="ml-2 text-rose-dust font-semibold">🔒 Expired</span>}
                           {isExpiring && !isMaxed && <span className="ml-2 text-gold-accent font-semibold">Expiring Soon</span>}
                         </p>
                       </div>
@@ -294,13 +303,12 @@ export default function DashboardPage() {
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.min(percentage, 100)}%` }}
                             transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
-                            className={`h-full ${
-                              isMaxed
+                            className={`h-full ${isMaxed
                                 ? 'bg-rose-dust'
                                 : isExpiring
-                                ? `${quota.gradient}`
-                                : `${quota.gradient}`
-                            }`}
+                                  ? `${quota.gradient}`
+                                  : `${quota.gradient}`
+                              }`}
                           />
                         </div>
                       )}
@@ -318,14 +326,14 @@ export default function DashboardPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
         >
-            <div className="mb-2">
+          <div className="mb-2">
             <h2 className="text-xl sm:text-2xl font-bold text-charcoal mb-1">
               Quick Actions
             </h2>
             <p className="text-xs sm:text-sm text-warm-taupe">Get started with your next fashion moment</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {actionButtons.map((btn, i) => {
               const Icon = btn.icon;
               return (
@@ -360,6 +368,16 @@ export default function DashboardPage() {
           </div>
         </motion.section>
       </div>
+
+      <ConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        title="Sign Out"
+        message="Are you sure you want to sign out of your account?"
+        confirmText="Sign Out"
+        type="danger"
+      />
     </div>
   );
 }

@@ -47,6 +47,6 @@ export const resetPassword = (reset_token, new_password, confirm_new_password) =
   return API.post('/auth/password-reset/reset', {
     reset_token,
     new_password,
-    confirm_new_password,
+    confirm_password: confirm_new_password,
   });
 };

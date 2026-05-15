@@ -25,17 +25,50 @@ async def create_tryon_route(
     top_item_id: str = Form(...),
     override_photo: UploadFile | None = File(default=None),
     garment_photo_type: str = Form(default="flat-lay"),
+    vton_num_timesteps: int | None = Form(default=None),
+    vton_guidance_scale: float | None = Form(default=None),
+    vton_segmentation_free: bool | None = Form(default=None),
     current_user: dict = Depends(get_current_fully_registered_user),
     db: Database = Depends(get_db),
 ):
-    return create_tryon(top_item_id, override_photo, garment_photo_type, current_user, db)
+    return create_tryon(
+        top_item_id, 
+        override_photo, 
+        garment_photo_type, 
+        current_user, 
+        db,
+        vton_num_timesteps=vton_num_timesteps,
+        vton_guidance_scale=vton_guidance_scale,
+        vton_segmentation_free=vton_segmentation_free
+    )
 
 
 @router.get("/history", response_model=list[TryOnJobOut])
 def get_tryon_history_route(
+    include_unsaved: bool = False,
     current_user: dict = Depends(get_current_fully_registered_user),
     db: Database = Depends(get_db),
 ):
-    return get_tryon_history(current_user, db)
+    return get_tryon_history(current_user, db, include_unsaved=include_unsaved)
+
+
+@router.post("/{job_id}/cancel")
+def cancel_tryon_route(
+    job_id: str,
+    current_user: dict = Depends(get_current_fully_registered_user),
+    db: Database = Depends(get_db),
+):
+    from app.controllers.tryon_controller import cancel_tryon
+    return cancel_tryon(job_id, current_user, db)
+
+
+@router.post("/{job_id}/save", response_model=TryOnJobOut)
+def save_tryon_job_route(
+    job_id: str,
+    current_user: dict = Depends(get_current_fully_registered_user),
+    db: Database = Depends(get_db),
+):
+    from app.controllers.tryon_controller import save_tryon_job
+    return save_tryon_job(job_id, current_user, db)
 
 __all__ = ["router"]

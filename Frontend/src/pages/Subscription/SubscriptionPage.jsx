@@ -202,7 +202,7 @@ export default function SubscriptionPage() {
       <motion.header
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 bg-cream/80 backdrop-blur-md border-b border-warm-gray/30 px-4 sm:px-8 py-6"
+        className="sticky top-0 z-40 bg-white border-b border-warm-gray/30 px-4 sm:px-8 py-6"
       >
         <div className="container-luxury flex items-center justify-between">
           <div className="flex items-center gap-4">

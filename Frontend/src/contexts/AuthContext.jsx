@@ -4,6 +4,14 @@ import * as userAPI from '@/services/api/user';
 
 const AuthContext = createContext();
 
+const extractErrorMessage = (err, defaultMsg) => {
+  const detail = err.response?.data?.detail;
+  if (typeof detail === 'object' && detail !== null) {
+    return detail.message || defaultMsg;
+  }
+  return detail || defaultMsg;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('access_token') || null);
@@ -29,6 +37,7 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         console.log('[AuthContext] Initialized from localStorage:', {
           user: parsedUser.email,
+          kind: parsedUser.kind || 'user',
           is_fully_registered: parsedUser.is_fully_registered,
         });
       } catch (err) {
@@ -51,7 +60,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.sendOTP(email);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to send OTP';
+      const errorMsg = extractErrorMessage(err, 'Failed to send OTP');
       setError(errorMsg);
       throw err;
     } finally {
@@ -66,7 +75,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.verifyOTP(email, otp);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Invalid OTP';
+      const errorMsg = extractErrorMessage(err, 'Invalid OTP');
       setError(errorMsg);
       throw err;
     } finally {
@@ -90,7 +99,7 @@ export const AuthProvider = ({ children }) => {
 
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Registration failed';
+      const errorMsg = extractErrorMessage(err, 'Registration failed');
       setError(errorMsg);
       throw err;
     } finally {
@@ -123,7 +132,7 @@ export const AuthProvider = ({ children }) => {
       console.log('[Auth] Step 2 registration complete. User is now fully registered:', userData.is_fully_registered);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Profile update failed';
+      const errorMsg = extractErrorMessage(err, 'Profile update failed');
       setError(errorMsg);
       throw err;
     } finally {
@@ -136,12 +145,20 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await authAPI.login(email, password);
-      const { access_token, user: userData } = response.data;
+      const { access_token, user: userData, admin: adminData, kind } = response.data;
 
-      // Ensure user object has is_fully_registered flag
+      // Handle both user and admin logins
+      const actualData = userData || adminData;
+      
+      if (!actualData) {
+        throw new Error('No user or admin data in response');
+      }
+
+      // Ensure user object has is_fully_registered flag (null for admin)
       const processedUser = {
-        ...userData,
-        is_fully_registered: userData.is_fully_registered ?? false,
+        ...actualData,
+        is_fully_registered: actualData.is_fully_registered ?? false,
+        kind: kind || 'user',
       };
 
       localStorage.setItem('access_token', access_token);
@@ -151,10 +168,10 @@ export const AuthProvider = ({ children }) => {
       setUser(processedUser);
       setIsAuthenticated(true);
 
-      console.log('[Auth] Login successful. User registered:', processedUser.is_fully_registered);
-      return { access_token, user: processedUser };
+      console.log('[Auth] Login successful. Kind:', kind, 'Registered:', processedUser.is_fully_registered);
+      return { access_token, user: processedUser, kind };
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Login failed';
+      const errorMsg = extractErrorMessage(err, 'Login failed');
       setError(errorMsg);
       throw err;
     } finally {
@@ -181,7 +198,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.sendPasswordResetOTP(email);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to send reset OTP';
+      const errorMsg = extractErrorMessage(err, 'Failed to send reset OTP');
       setError(errorMsg);
       throw err;
     } finally {
@@ -196,7 +213,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.verifyPasswordResetOTP(email, otp);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to verify OTP';
+      const errorMsg = extractErrorMessage(err, 'Failed to verify OTP');
       setError(errorMsg);
       throw err;
     } finally {
@@ -211,7 +228,7 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.resetPassword(resetToken, newPassword, confirmPassword);
       return response.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to reset password';
+      const errorMsg = extractErrorMessage(err, 'Failed to reset password');
       setError(errorMsg);
       throw err;
     } finally {

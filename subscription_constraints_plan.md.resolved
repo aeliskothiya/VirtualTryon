@@ -1,0 +1,33 @@
+# Subscription Constraints Implementation Plan
+
+## Analysis Summary
+
+After analyzing the reference `Frontend.zip` and comparing with the current project, here are all the subscription-based constraints that need to be applied:
+
+## 1. TryOnPage — MISSING constraints
+- [ ] Block try-on when `is_subscription_expired === true`
+- [ ] Check `remaining_tryons_today <= 0` → show upgrade modal
+- [ ] Show expiry warning message below the submit button
+- [ ] Show "Upgrade Required" modal with plan-specific messages
+
+## 2. RecommendationsPage — PARTIALLY done
+- [ ] Disable "Get Recommendations" button when `is_subscription_expired`
+- [ ] Show toast warning on page load when subscription expired
+- [ ] **Occasion filter plan-gating**: Only Standard/Premium plans get occasion filter; Basic shows disabled dropdown
+- [ ] Show "Upgrade Required" modal when daily limit reached
+
+## 3. WardrobeManagementPage — MISSING constraints
+- [ ] Add Activate/Deactivate toggle per item (API exists: `PATCH /wardrobe/items/{id}/status`)
+- [ ] Show active/inactive status badge per item
+- [ ] Visual opacity (0.7) for inactive items
+- [ ] Show embedding status (ready/pending) per item
+- [ ] Fetch items with `include_inactive=true`
+
+## 4. SubscriptionPage — MISSING constraint
+- [ ] **Downgrade blocking modal**: When purchasing a plan with lower `wardrobe_limit` than current wardrobe count, show modal saying "Remove extra items before downgrading"
+
+## 5. Backend APIs — Already complete ✅
+- `PATCH /wardrobe/items/{id}/status` — toggle active/inactive
+- `ensure_wardrobe_capacity` — checks wardrobe limit
+- `is_subscription_expired` flag — returned in user profile
+- `remaining_tryons_today` / `remaining_recommendations_today` — returned in profile

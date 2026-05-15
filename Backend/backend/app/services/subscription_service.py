@@ -196,7 +196,11 @@ def _user_daily_usage_start(user: dict[str, Any], now: Optional[datetime] = None
 
 def get_tryon_count_today(db: Database, user_id: str, user: dict[str, Any], now: Optional[datetime] = None) -> int:
     start = _user_daily_usage_start(user, now)
-    return db.tryon_jobs.count_documents({"user_id": user_id, "created_at": {"$gte": start}})
+    return db.tryon_jobs.count_documents({
+        "user_id": user_id, 
+        "created_at": {"$gte": start},
+        "status": {"$in": ["processing", "completed"]}
+    })
 
 
 def get_recommendation_count_today(db: Database, user_id: str, user: dict[str, Any], now: Optional[datetime] = None) -> int:

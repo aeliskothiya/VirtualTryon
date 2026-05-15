@@ -6,24 +6,33 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const idRef = useRef(0);
 
-  const addNotification = useCallback((message, type = 'info', duration = 4000) => {
-    const id = idRef.current++;
-    const notification = { id, message, type };
-
-    setNotifications((prev) => [...prev, notification]);
-
-    if (duration > 0) {
-      setTimeout(() => {
-        removeNotification(id);
-      }, duration);
-    }
-
-    return id;
-  }, []);
-
   const removeNotification = useCallback((id) => {
     setNotifications((prev) => prev.filter((notif) => notif.id !== id));
   }, []);
+
+  const addNotification = useCallback((message, type = 'info', duration = 4000) => {
+    let notificationId = null;
+    
+    setNotifications((prev) => {
+      // Prevent duplicate messages if the exact same alert is already visible
+      const isDuplicate = prev.some(n => n.message === message && n.type === type);
+      if (isDuplicate) return prev;
+
+      const id = idRef.current++;
+      notificationId = id;
+      const notification = { id, message, type };
+
+      if (duration > 0) {
+        setTimeout(() => {
+          removeNotification(id);
+        }, duration);
+      }
+
+      return [...prev, notification];
+    });
+
+    return notificationId;
+  }, [removeNotification]);
 
   const showSuccess = useCallback((message, duration = 4000) => {
     return addNotification(message, 'success', duration);

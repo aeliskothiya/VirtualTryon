@@ -106,7 +106,8 @@ export default function RegisterStep1Page() {
       setOtpResendCountdown(60);
       showSuccess('OTP sent to your email');
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to send OTP. Please try again.';
+      const detail = err.response?.data?.detail;
+      const errorMsg = typeof detail === 'object' ? detail.message : (detail || 'Failed to send OTP. Please try again.');
       setFormError(errorMsg);
       showError(errorMsg);
     }
@@ -126,7 +127,8 @@ export default function RegisterStep1Page() {
       setStep(STEP_FLOW.PASSWORD);
       showSuccess('Email verified successfully');
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Invalid OTP. Please try again.';
+      const detail = err.response?.data?.detail;
+      const errorMsg = typeof detail === 'object' ? detail.message : (detail || 'Invalid OTP. Please try again.');
       setFormError(errorMsg);
       showError(errorMsg);
     }
@@ -167,7 +169,8 @@ export default function RegisterStep1Page() {
       showSuccess('Account created successfully');
       navigate('/register/step-2');
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Registration failed. Please try again.';
+      const detail = err.response?.data?.detail;
+      const errorMsg = typeof detail === 'object' ? detail.message : (detail || 'Registration failed. Please try again.');
       setFormError(errorMsg);
       showError(errorMsg);
     }

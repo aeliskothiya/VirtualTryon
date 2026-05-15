@@ -59,15 +59,15 @@ export const Confetti = ({ active = true, particleCount = 50, duration = 2000 })
  * Confetti Hook
  * Hook to control confetti display
  */
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 export const useConfettiBlast = () => {
   const [showConfetti, setShowConfetti] = useState(false);
 
-  const trigger = (duration = 2000) => {
+  const trigger = useCallback((duration = 2000) => {
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), duration);
-  };
+  }, []);
 
   return { showConfetti, trigger, Confetti: () => <Confetti active={showConfetti} /> };
 };

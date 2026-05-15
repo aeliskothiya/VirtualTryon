@@ -29,11 +29,11 @@ import WardrobeManagementPage from '@/pages/Wardrobe/WardrobeManagementPage';
 import TryOnPage from '@/pages/TryOn/TryOnPage';
 import RecommendationsPage from '@/pages/Recommendations/RecommendationsPage';
 import SubscriptionPage from '@/pages/Subscription/SubscriptionPage';
+import SavedTryOnsPage from '@/pages/TryOn/SavedTryOnsPage';
 import CheckoutPage from '@/pages/Subscription/CheckoutPage';
 import SettingsPage from '@/pages/Settings/SettingsPage';
-
-import AdminLoginPage from '@/pages/Admin/AdminLoginPage';
 import AdminDashboardPage from '@/pages/Admin/AdminDashboardPage';
+import AdminSubscriptionsPage from '@/pages/Admin/AdminSubscriptionsPage';
 
 // Page transition wrapper
 function RouteWithTransition({ element }) {
@@ -54,14 +54,26 @@ function AppContent() {
         <Route path="/reset-password" element={<RouteWithTransition element={<ResetPasswordPage />} />} />
 
         {/* Admin Routes */}
-        <Route path="/admin/login" element={<RouteWithTransition element={<AdminLoginPage />} />} />
+        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route
-          path="/admin/*"
+          path="/admin/dashboard"
           element={
             <RouteWithTransition
               element={
                 <ProtectedRoute isAdmin={true}>
                   <AdminDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+          }
+        />
+        <Route
+          path="/admin/subscriptions"
+          element={
+            <RouteWithTransition
+              element={
+                <ProtectedRoute isAdmin={true}>
+                  <AdminSubscriptionsPage />
                 </ProtectedRoute>
               }
             />
@@ -100,6 +112,18 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <TryOnPage />
+                </ProtectedRoute>
+              }
+            />
+          }
+        />
+        <Route
+          path="/saved-tryons"
+          element={
+            <RouteWithTransition
+              element={
+                <ProtectedRoute>
+                  <SavedTryOnsPage />
                 </ProtectedRoute>
               }
             />

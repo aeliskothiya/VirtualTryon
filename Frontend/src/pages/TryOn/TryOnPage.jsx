@@ -7,10 +7,15 @@ import {
   Download,
   Share2,
   ChevronUp,
+  ChevronDown,
+  Settings,
+  RefreshCcw,
+  Maximize2,
   ImageOff,
   AlertCircle,
   Crown,
   AlertTriangle,
+  X,
 } from 'lucide-react';
 import { useTryOn, useWardrobe, useNotification, useUser } from '@/hooks';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -23,24 +28,34 @@ import { useConfettiBlast } from '@/components/common/Confetti';
 export default function TryOnPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { createTryOn, currentJob, isProcessing, processingProgress } = useTryOn();
+  const { 
+    createTryOn, 
+    currentJob, 
+    isProcessing, 
+    processingProgress, 
+    saveTryOn, 
+    history, 
+    fetchHistory,
+    cancelTryOn,
+    resetTryOn 
+  } = useTryOn();
   const { fetchItems, items, getTops, getBottoms, getOnePieces } = useWardrobe();
-  const { profile } = useUser();
-  const { showSuccess, showError } = useNotification();
+  const { profile, fetchProfile } = useUser();
+  const { showSuccess, showError, showInfo } = useNotification();
   const { trigger: triggerConfetti } = useConfettiBlast();
-  const { startTryOn, updateProgress, completeTryOn } = useTryOnLock();
+  const { startTryOn, updateProgress, completeTryOn, abortTryOn } = useTryOnLock();
 
   const preselectedTryOn = location.state?.garmentId
     ? {
-        garmentId: location.state.garmentId,
-        garmentType:
-          location.state.garmentType === 'top' ||
+      garmentId: location.state.garmentId,
+      garmentType:
+        location.state.garmentType === 'top' ||
           location.state.garmentType === 'bottom' ||
           location.state.garmentType === 'one-piece'
-            ? location.state.garmentType
-            : 'top',
-        garmentItem: location.state.garmentItem || null,
-      }
+          ? location.state.garmentType
+          : 'top',
+      garmentItem: location.state.garmentItem || null,
+    }
     : null;
   const preselectedTryOnRef = useRef(preselectedTryOn);
 
@@ -55,6 +70,12 @@ export default function TryOnPage() {
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [garmentPhotoType, setGarmentPhotoType] = useState('flat-lay');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [numTimesteps, setNumTimesteps] = useState(30);
+  const [guidanceScale, setGuidanceScale] = useState(2.0);
+  const [segmentationFree, setSegmentationFree] = useState(true);
 
   // Subscription checks
   const isSubscriptionExpired = profile?.is_subscription_expired;
@@ -63,7 +84,20 @@ export default function TryOnPage() {
 
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]);
+    fetchHistory();
+    if (fetchProfile) {
+      fetchProfile().catch(err => console.error("Failed to load profile:", err));
+    }
+  }, [fetchItems, fetchHistory, fetchProfile]);
+
+  const hasShownExpiredRef = React.useRef(false);
+
+  useEffect(() => {
+    if (isSubscriptionExpired && !hasShownExpiredRef.current) {
+      showInfo('Your subscription has expired. Please renew to continue using virtual try-on.');
+      hasShownExpiredRef.current = true;
+    }
+  }, [isSubscriptionExpired, showInfo]);
 
 
   // Update garments list based on selected garment type
@@ -79,14 +113,23 @@ export default function TryOnPage() {
     if (!shouldKeepPreselected) {
       setSelectedGarment(null); // Reset selection when changing type manually
     }
+    setCurrentPage(1);
   }, [items, getTops, getBottoms, getOnePieces, garmentType]);
 
+
+  const hasTriggeredConfettiRef = useRef(false);
 
   // Trigger confetti when try-on results are ready
   useEffect(() => {
     if (step === 'results' && (currentJob?.output_url || currentJob?.result_image_url)) {
-      console.log('[TryOnPage] Results step active, triggering confetti');
-      triggerConfetti();
+      if (!hasTriggeredConfettiRef.current) {
+        console.log('[TryOnPage] Results step active, triggering confetti');
+        triggerConfetti();
+        hasTriggeredConfettiRef.current = true;
+      }
+    } else {
+      // Reset if we leave the results step so it can fire for the next job
+      hasTriggeredConfettiRef.current = false;
     }
   }, [step, currentJob?.output_url, currentJob?.result_image_url, triggerConfetti]);
 
@@ -94,8 +137,16 @@ export default function TryOnPage() {
   useEffect(() => {
     if (isProcessing) {
       updateProgress(processingProgress);
+      if (step !== 'process') {
+        setStep('process');
+        startTryOn();
+      }
+    } else if (step === 'process' && currentJob?.status !== 'completed') {
+      // If we are on the process step but no longer processing (and not completed), it must have failed/cancelled.
+      abortTryOn();
+      setStep('select');
     }
-  }, [isProcessing, processingProgress, updateProgress]);
+  }, [isProcessing, processingProgress, updateProgress, step, startTryOn, abortTryOn, currentJob?.status]);
 
   // Monitor job completion and transition to results
   useEffect(() => {
@@ -106,9 +157,10 @@ export default function TryOnPage() {
     } else if (currentJob && currentJob.status === 'failed') {
       console.error('[TryOnPage] Job failed:', currentJob.error_message);
       showError(currentJob.error_message || 'Try-on generation failed');
+      abortTryOn();
       setStep('select');
     }
-  }, [currentJob, completeTryOn, showError]);
+  }, [currentJob, completeTryOn, abortTryOn, showError]);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -147,8 +199,9 @@ export default function TryOnPage() {
       showError(`Please select a ${garmentName} item`);
       return;
     }
-    if (!userPhoto) {
-      showError('Please upload your photo');
+    
+    if (!userPhoto && !profile?.profile_photo_url) {
+      showError('Please upload your photo or add a profile photo in settings');
       return;
     }
 
@@ -167,10 +220,20 @@ export default function TryOnPage() {
     setStep('process');
     startTryOn(); // Lock UI globally
     try {
-      await createTryOn(selectedGarment.id, userPhoto, garmentPhotoType);
+      await createTryOn(
+        selectedGarment.id, 
+        userPhoto, 
+        garmentPhotoType, 
+        showAdvanced ? {
+          num_timesteps: numTimesteps,
+          guidance_scale: guidanceScale,
+          segmentation_free: segmentationFree
+        } : {}
+      );
       showSuccess('Try-on started!');
     } catch (error) {
       showError(error.message || 'Try-on failed');
+      abortTryOn();
       setStep('select');
     }
   };
@@ -224,12 +287,12 @@ export default function TryOnPage() {
   };
 
   return (
-    <div className="min-h-screen bg-cream pb-20">
+    <div className="min-h-screen bg-cream pb-8">
       {/* HEADER */}
       <motion.header
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 bg-cream/80 backdrop-blur-md border-b border-warm-gray/30 px-4 sm:px-8 py-6"
+        className="sticky top-0 z-40 bg-white border-b border-warm-gray/30 px-4 sm:px-8 py-4"
       >
         <div className="container-luxury flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -251,7 +314,7 @@ export default function TryOnPage() {
         </div>
       </motion.header>
 
-      <div className="container-luxury section-padding">
+      <div className="container-luxury py-6">
         <AnimatePresence mode="wait">
           {/* STEP 1: SELECT */}
           {step === 'select' && (
@@ -261,43 +324,43 @@ export default function TryOnPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.5 }}
-              className="space-y-12"
+              className="space-y-8"
             >
-              {/* FLAT-LAY ONLY NOTE */}
-              <section>
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">Step 1: Prepare Your Photo</h2>
-                  <p className="text-warm-taupe">We use flat-lay garment photos for precise virtual try-on. Upload a clear photo of yourself.</p>
-                  {preselectedTryOnRef.current && (
-                    <p className="mt-4 text-sm text-gold-accent font-medium">
-                      ✓ Garment selected. Upload your photo to continue.
-                    </p>
-                  )}
+              {/* 1. GARMENT CATEGORY SELECTOR */}
+              <section className="bg-white p-6 rounded-2xl shadow-sm border border-warm-gray/10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-charcoal mb-1">Choose Category</h2>
+                    <p className="text-sm text-warm-taupe">What would you like to try on today?</p>
+                  </div>
+                  <div className="flex p-1 bg-ivory rounded-xl border border-warm-gray/20 w-full md:w-auto min-w-[300px]">
+                    {['top', 'bottom', 'one-piece'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => {
+                          setGarmentType(type);
+                          setCurrentPage(1);
+                        }}
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all capitalize ${
+                          garmentType === type
+                            ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                            : 'text-warm-taupe hover:text-charcoal'
+                        }`}
+                      >
+                        {type.replace('-', ' ')}s
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
 
-              {/* PHOTO-TYPE SELECTOR (Flat-lay / On-model) */}
+              {/* 2. GARMENT SELECTION GRID */}
               <section>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-charcoal mb-2">Photo Type</label>
-                  <select
-                    value={garmentPhotoType}
-                    onChange={(e) => setGarmentPhotoType(e.target.value)}
-                    className="p-2 border rounded-lg bg-ivory"
-                  >
-                    <option value="flat-lay">Flat-lay (recommended)</option>
-                    <option value="on-model">On-model</option>
-                  </select>
-                </div>
-              </section>
-
-              {/* GARMENT SELECTION */}
-              <section>
-                <div className="mb-8">
                   <h2 className="text-2xl font-bold text-charcoal mb-2">
-                    Step 2: Select Your Flat-Lay Item
+                    Select Your Garment
                   </h2>
-                  <p className="text-warm-taupe">Choose a garment from your wardrobe</p>
+                  <p className="text-warm-taupe">Pick an item from your {garmentType.replace('-', ' ')} collection</p>
                 </div>
 
                 {garments.length === 0 ? (
@@ -321,162 +384,381 @@ export default function TryOnPage() {
                     </AnimatedButton>
                   </motion.div>
                 ) : (
-                  <motion.div
-                    variants={topContainerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                  >
-                    {garments.map((item) => (
-                      <motion.button
-                        key={item.id}
-                        variants={topItemVariants}
-                        whileHover="hover"
-                        onClick={() => setSelectedGarment(item)}
-                        className={`card-luxury p-4 relative overflow-hidden group cursor-pointer transition-all ${
-                          selectedGarment?.id === item.id
-                            ? 'ring-2 ring-gold-accent'
-                            : 'hover:ring-1 hover:ring-warm-gray'
-                        }`}
-                      >
-                        {/* Image */}
-                        <div className="aspect-square overflow-hidden rounded-lg bg-beige mb-3">
-                          {imageLoadState[item.id] !== 'error' ? (
-                            <>
-                              {imageLoadState[item.id] !== 'loaded' && (
-                                <motion.div
-                                  animate={{ opacity: [0.5, 1, 0.5] }}
-                                  transition={{ duration: 1.5, repeat: Infinity }}
-                                  className="absolute inset-0 bg-warm-gray/20"
-                                />
+                  <div className="space-y-6">
+                    <motion.div
+                      variants={topContainerVariants}
+                      initial="hidden"
+                      animate="visible"
+                      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+                    >
+                      {garments
+                        .slice((currentPage - 1) * 10, currentPage * 10)
+                        .map((item) => (
+                          <motion.button
+                            key={item.id}
+                            variants={topItemVariants}
+                            whileHover="hover"
+                            onClick={() => setSelectedGarment(item)}
+                            className={`card-garment relative overflow-hidden group cursor-pointer transition-all ${selectedGarment?.id === item.id
+                                ? 'ring-2 ring-gold-accent'
+                                : 'hover:ring-1 hover:ring-gold-accent'
+                              }`}
+                          >
+                            {/* Image */}
+                            <div className="aspect-[4/5] overflow-hidden rounded-md bg-white">
+                              {imageLoadState[item.id] !== 'error' ? (
+                                <>
+                                  {imageLoadState[item.id] !== 'loaded' && (
+                                    <motion.div
+                                      animate={{ opacity: [0.5, 1, 0.5] }}
+                                      transition={{ duration: 1.5, repeat: Infinity }}
+                                      className="absolute inset-0 bg-warm-gray/20"
+                                    />
+                                  )}
+                                  <motion.img
+                                    whileHover={{ scale: 1.05 }}
+                                    src={normalizeImageUrl(item.image_url) || item.image_url}
+                                    alt="Garment"
+                                    className="w-full h-full object-contain p-2"
+                                    onLoad={() =>
+                                      setImageLoadState((prev) => ({ ...prev, [item.id]: 'loaded' }))
+                                    }
+                                    onError={() => {
+                                      onImageError(item.image_url);
+                                      setImageLoadState((prev) => ({ ...prev, [item.id]: 'error' }));
+                                    }}
+                                  />
+                                </>
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageOff size={24} className="text-warm-gray" />
+                                </div>
                               )}
-                              <motion.img
-                                whileHover={{ scale: 1.1 }}
-                                src={getImageUrl(item)}
-                                alt="Garment item"
-                                className="w-full h-full object-cover"
-                                onLoad={() => handleImageLoad(item.id)}
-                                onError={(e) => handleImageError(item.id, item.image_url)}
-                              />
-                            </>
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageOff size={24} className="text-warm-gray" />
                             </div>
-                          )}
-                        </div>
 
-                        {/* Selection Badge */}
-                        <AnimatePresence>
-                          {selectedGarment?.id === item.id && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              exit={{ scale: 0 }}
-                              className="absolute top-2 right-2 w-6 h-6 bg-gold-accent rounded-full flex items-center justify-center text-cream"
-                            >
-                              ✓
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.button>
-                    ))}
-                  </motion.div>
+                            {/* Selection Badge */}
+                            <AnimatePresence>
+                              {selectedGarment?.id === item.id && (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  exit={{ scale: 0 }}
+                                  className="absolute top-2 right-2 w-6 h-6 bg-gold-accent rounded-full flex items-center justify-center text-cream"
+                                >
+                                  ✓
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </motion.button>
+                        ))}
+                    </motion.div>
+
+                    {Math.ceil(garments.length / 10) > 1 && (
+                      <div className="flex justify-center items-center gap-4">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-sm font-semibold text-charcoal">
+                          Page {currentPage} of {Math.ceil(garments.length / 10)}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(p + 1, Math.ceil(garments.length / 10)))}
+                          disabled={currentPage === Math.ceil(garments.length / 10)}
+                          className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </section>
 
-              {/* PHOTO UPLOAD */}
-              <section>
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">Step 3: Upload Your Photo</h2>
-                  <p className="text-warm-taupe">A clear photo of yourself for accurate virtual try-on</p>
+              {/* 3. PHOTO PERSPECTIVE TOGGLE */}
+              <section className="bg-white p-6 rounded-2xl shadow-sm border border-warm-gray/10">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-charcoal mb-1">Photo Perspective</h2>
+                    <p className="text-sm text-warm-taupe italic">
+                      * <span className="font-bold">Flat-Lay</span>: Garment on a flat surface. 
+                      <br />
+                      * <span className="font-bold">On-Model</span>: Garment being worn.
+                    </p>
+                  </div>
+                  <div className="flex p-1 bg-ivory rounded-xl border border-warm-gray/20 w-full md:w-auto min-w-[300px]">
+                    {[
+                      { id: 'flat-lay', label: 'Flat-Lay' },
+                      { id: 'on-model', label: 'On-Model' }
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setGarmentPhotoType(opt.id)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                          garmentPhotoType === opt.id
+                            ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                            : 'text-warm-taupe hover:text-charcoal'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-
-                <motion.div
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  animate={dragActive ? { scale: 1.02 } : { scale: 1 }}
-                  className={`relative rounded-2xl border-2 border-dashed p-12 sm:p-16 transition-all cursor-pointer ${
-                    dragActive
-                      ? 'border-gold-accent bg-gold-accent/5'
-                      : 'border-warm-gray/50 bg-ivory hover:border-gold-accent hover:bg-gold-accent/2'
-                  }`}
-                >
-                  {userPhoto ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-6"
-                    >
-                      <div className="relative aspect-square max-w-xs mx-auto rounded-xl overflow-hidden shadow-luxury">
-                        <img
-                          src={URL.createObjectURL(userPhoto)}
-                          alt="Your photo"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="text-center space-y-3">
-                        <p className="text-sm font-medium text-charcoal">{userPhoto.name}</p>
-                        <AnimatedButton
-                          variant="secondary"
-                          onClick={() => setUserPhoto(null)}
-                        >
-                          Change Photo
-                        </AnimatedButton>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <div className="flex flex-col items-center justify-center py-8">
-                        <motion.div
-                          animate={{ y: [0, -8, 0] }}
-                          transition={{ duration: 2.5, repeat: Infinity }}
-                          className="mb-6"
-                        >
-                          <Upload size={56} className="text-gold-accent" />
-                        </motion.div>
-                        <h3 className="text-2xl font-semibold text-charcoal mb-2 text-center">
-                          Drag your photo here
-                        </h3>
-                        <p className="text-warm-taupe text-center mb-6">
-                          or click to browse
-                        </p>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) processFile(e.target.files[0]);
-                          }}
-                          className="hidden"
-                        />
-                        <div className="text-xs text-warm-taupe">JPG, PNG • Up to 10MB</div>
-                      </div>
-                    </label>
-                  )}
-                </motion.div>
               </section>
 
-              {/* ACTION BUTTONS */}
-              <div className="flex flex-col sm:flex-row gap-4 pt-8 border-t border-warm-gray/50">
-                <AnimatedButton
-                  variant="secondary"
-                  onClick={() => navigate('/dashboard')}
-                  className="flex-1"
-                >
-                  Cancel
-                </AnimatedButton>
-                <AnimatedButton
-                  variant="primary"
-                  onClick={handleStartTryOn}
-                  disabled={!selectedGarment || !userPhoto}
-                  className="flex-1 flex items-center justify-center gap-2 font-semibold"
-                >
-                  <Play size={20} />
-                  Generate Try-On
-                </AnimatedButton>
-              </div>
+              {/* 4. PHOTO UPLOAD */}
+              <section className="flex flex-col lg:flex-row gap-8 items-stretch pt-4">
+                {/* Left Side: Photo Upload */}
+                <div className="flex-[1.5] flex flex-col">
+                  <div className="mb-4">
+                    <h2 className="text-2xl font-bold text-charcoal mb-2">Your Photo (Optional)</h2>
+                    <p className="text-warm-taupe">
+                      If left empty, we'll use your 
+                      <span className="text-gold-accent font-semibold px-1">profile photo</span>.
+                    </p>
+                  </div>
+
+                  <motion.div
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                    animate={dragActive ? { scale: 1.02 } : { scale: 1 }}
+                    className={`flex-1 relative rounded-2xl border-2 border-dashed p-6 sm:p-8 transition-all cursor-pointer flex flex-col items-center justify-center ${dragActive
+                        ? 'border-gold-accent bg-gold-accent/5'
+                        : 'border-warm-gray/50 bg-ivory hover:border-gold-accent hover:bg-gold-accent/2'
+                      }`}
+                  >
+                    {userPhoto ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="space-y-4 w-full"
+                      >
+                        <div className="relative aspect-square max-w-[160px] mx-auto rounded-xl overflow-hidden shadow-luxury">
+                          <img
+                            src={URL.createObjectURL(userPhoto)}
+                            alt="Your photo"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="text-center space-y-2">
+                          <p className="text-xs font-medium text-charcoal truncate px-4">{userPhoto.name}</p>
+                          <AnimatedButton
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setUserPhoto(null);
+                            }}
+                            className="px-4 py-1.5 text-xs inline-block"
+                          >
+                            Change Photo
+                          </AnimatedButton>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <label className="cursor-pointer w-full h-full flex items-center justify-center">
+                        <div className="flex flex-col items-center justify-center py-4">
+                          <motion.div
+                            animate={{ y: [0, -6, 0] }}
+                            transition={{ duration: 2.5, repeat: Infinity }}
+                            className="mb-4"
+                          >
+                            <Upload size={40} className="text-gold-accent" />
+                          </motion.div>
+                          <h3 className="text-xl font-bold text-charcoal mb-1 text-center">
+                            Drag your photo here
+                          </h3>
+                          <p className="text-sm text-warm-taupe text-center mb-4">
+                            or click to browse
+                          </p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) processFile(e.target.files[0]);
+                            }}
+                            className="hidden"
+                          />
+                          <div className="text-xs text-warm-taupe">JPG, PNG • Up to 10MB</div>
+                        </div>
+                      </label>
+                    )}
+                  </motion.div>
+                </div>
+                
+                {/* Right Side: Action Buttons */}
+                <div className="flex-1 flex flex-col justify-start gap-4 mt-6 lg:mt-0 lg:pb-1 relative">
+                  {/* Invisible spacer to align perfectly with the box on desktop */}
+                  <div className="mb-4 hidden lg:block invisible pointer-events-none" aria-hidden="true">
+                    <h2 className="text-2xl font-bold mb-2">Spacer</h2>
+                    <p className="text-base">Spacer line</p>
+                  </div>
+                  {/* Cancel & Generate Row */}
+                  <div className="flex gap-4">
+                    <AnimatedButton
+                      variant="secondary"
+                      onClick={() => navigate('/dashboard')}
+                      className="flex-[0.8] py-4"
+                    >
+                      Cancel
+                    </AnimatedButton>
+                    <AnimatedButton
+                      variant="primary"
+                      onClick={() => {
+                        if (isProcessing) {
+                          setStep('process');
+                        } else if (currentJob?.status === 'completed') {
+                          setStep('results');
+                        } else {
+                          handleStartTryOn();
+                        }
+                      }}
+                      className={`flex-[1.2] flex items-center justify-center gap-2 font-semibold transition-all py-4 ${
+                        isProcessing ? 'bg-gold-accent/80 shadow-inner ring-2 ring-gold-accent/20' : ''
+                      }`}
+                    >
+                      {isProcessing ? (
+                        <>
+                          <RefreshCcw size={20} className="animate-spin" />
+                          <span className="animate-pulse">Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={20} />
+                          Generate Try-On
+                        </>
+                      )}
+                    </AnimatedButton>
+                  </div>
+                  
+                  {/* Advanced Toggle & Dropdown */}
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className={`flex items-center justify-between w-full px-5 py-4 rounded-xl transition-all border-2 ${
+                        showAdvanced 
+                          ? 'bg-gold-accent border-gold-accent text-white shadow-luxury' 
+                          : 'bg-ivory border-warm-gray/30 text-charcoal hover:border-gold-accent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Settings size={18} className={showAdvanced ? 'animate-spin-slow' : ''} />
+                        <span className="font-bold text-sm whitespace-nowrap">Advanced Options</span>
+                      </div>
+                      <ChevronDown 
+                        size={16} 
+                        className={`transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`} 
+                      />
+                    </button>
+
+                    <AnimatePresence>
+                      {showAdvanced && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute top-[100%] left-0 right-0 mt-2 z-50 overflow-hidden" 
+                        >
+                        <div className="p-5 space-y-8 bg-white rounded-2xl border border-warm-gray/20 shadow-luxury">
+                        {/* SAMPLING STEPS */}
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-bold text-charcoal tracking-wider">Sampling Steps</h3>
+                              <p className="text-xs text-warm-taupe">Higher = better quality but slower. 30 is recommended.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-12 py-1 px-2 bg-ivory border border-warm-gray/30 rounded text-center text-xs font-black text-gold-accent shadow-sm">
+                                {numTimesteps}
+                              </span>
+                              <button 
+                                onClick={() => setNumTimesteps(30)}
+                                className="p-1 hover:bg-ivory rounded-full transition-all text-warm-taupe hover:text-gold-accent hover:rotate-180 duration-500"
+                                title="Reset to default"
+                              >
+                                <RefreshCcw size={14} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="relative flex items-center gap-4">
+                            <span className="text-[10px] font-black text-warm-taupe/30">08</span>
+                            <input
+                              type="range"
+                              min="8"
+                              max="50"
+                              step="1"
+                              value={numTimesteps}
+                              onChange={(e) => setNumTimesteps(parseInt(e.target.value))}
+                              className="flex-1 h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-gold-accent"
+                            />
+                            <span className="text-[10px] font-black text-warm-taupe/30">50</span>
+                          </div>
+                        </div>
+
+                        {/* GUIDANCE SCALE */}
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-bold text-charcoal tracking-wider">Guidance Scale</h3>
+                              <p className="text-xs text-warm-taupe">How closely to follow garment details. 2.0 recommended.</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="w-12 py-1 px-2 bg-ivory border border-warm-gray/30 rounded text-center text-xs font-black text-gold-accent shadow-sm">
+                                {guidanceScale.toFixed(1)}
+                              </span>
+                              <button 
+                                onClick={() => setGuidanceScale(2.0)}
+                                className="p-1 hover:bg-ivory rounded-full transition-all text-warm-taupe hover:text-gold-accent hover:rotate-180 duration-500"
+                                title="Reset to default"
+                              >
+                                <RefreshCcw size={14} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="relative flex items-center gap-4">
+                            <span className="text-[10px] font-black text-warm-taupe/30">1.0</span>
+                            <input
+                              type="range"
+                              min="1"
+                              max="5"
+                              step="0.1"
+                              value={guidanceScale}
+                              onChange={(e) => setGuidanceScale(parseFloat(e.target.value))}
+                              className="flex-1 h-1 bg-warm-gray/20 rounded-full appearance-none cursor-pointer accent-gold-accent"
+                            />
+                            <span className="text-[10px] font-black text-warm-taupe/30">5.0</span>
+                          </div>
+                        </div>
+
+                        {/* SEGMENTATION FREE */}
+                        <div className="flex items-start gap-4 p-4 rounded-xl bg-ivory border border-warm-gray/20 shadow-soft">
+                          <div className="pt-1">
+                            <input
+                              type="checkbox"
+                              id="seg-free"
+                              checked={segmentationFree}
+                              onChange={(e) => setSegmentationFree(e.target.checked)}
+                              className="w-5 h-5 rounded-md border-warm-gray text-gold-accent focus:ring-gold-accent cursor-pointer transition-all"
+                            />
+                          </div>
+                          <label htmlFor="seg-free" className="cursor-pointer space-y-1">
+                            <h3 className="text-sm font-bold text-charcoal tracking-wider">Segmentation-Free</h3>
+                            <p className="text-xs text-warm-taupe leading-relaxed">Preserves body features and allows unconstrained garment volume. <span className="text-gold-accent font-black">(Recommended)</span></p>
+                          </label>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                </div>
+                </div>
+              </section>
               {isSubscriptionExpired && (
                 <div className="mt-4 p-3 bg-rose-dust/10 rounded-lg border border-rose-dust/20 flex items-center gap-2">
                   <AlertTriangle size={16} className="text-rose-dust" />
@@ -534,19 +816,51 @@ export default function TryOnPage() {
                     {processingProgress}%
                   </motion.span>
                 </div>
-                <div className="h-3 bg-warm-gray/20 rounded-full overflow-hidden">
+                <div className="h-3 bg-warm-gray/20 rounded-full overflow-hidden relative">
                   <motion.div
-                    className="h-full gradient-gold"
-                    initial={{ width: '15%' }}
-                    animate={{ width: `${Math.max(processingProgress, 15)}%` }}
+                    className="h-full gradient-gold relative overflow-hidden"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${processingProgress}%` }}
                     transition={{ duration: 0.3, ease: 'easeOut' }}
-                  />
+                  >
+                    {/* Animated Shimmer / Glare Effect */}
+                    <motion.div 
+                      className="absolute top-0 bottom-0 w-full bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-12"
+                      initial={{ left: '-100%' }}
+                      animate={{ left: '200%' }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: 'linear' }}
+                    />
+                  </motion.div>
                 </div>
               </div>
 
-              <p className="text-sm text-warm-taupe">
-                ⏱️ Estimated time: 1-2 minutes
-              </p>
+              <div className="flex flex-col items-center gap-6 mt-8">
+                <p className="text-sm text-warm-taupe">
+                  ⏱️ It takes few minutes to generate the try-on.
+                </p>
+                
+                    <AnimatedButton
+                      variant="secondary"
+                      onClick={async () => {
+                        if (currentJob?.id) {
+                          try {
+                            await cancelTryOn(currentJob.id);
+                            setStep('select');
+                            showSuccess('Try-on cancelled');
+                          } catch (err) {
+                            showError('Failed to cancel job');
+                            setStep('select');
+                          }
+                        } else {
+                          setStep('select');
+                          resetTryOn();
+                        }
+                      }}
+                      className="px-8 py-2 text-xs font-bold border-rose-dust/30 text-rose-dust hover:bg-rose-dust hover:text-white"
+                    >
+                      Cancel Process
+                    </AnimatedButton>
+              </div>
             </motion.div>
           )}
 
@@ -560,123 +874,157 @@ export default function TryOnPage() {
               transition={{ duration: 0.5 }}
               className="space-y-10"
             >
-              {/* BEFORE/AFTER SLIDER */}
-              <section>
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">Your Transformation</h2>
-                  <p className="text-warm-taupe">Drag the slider to compare before and after</p>
+              {/* RESULT DISPLAY */}
+              <section className="max-w-xs mx-auto">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold text-charcoal mb-1">Your New Look</h2>
+                  <p className="text-[11px] text-warm-taupe tracking-widest font-black opacity-60">Try-on Complete</p>
                 </div>
 
-                <div
-                  onMouseMove={handleSliderMove}
-                  onMouseDown={() => setIsSliderDragging(true)}
-                  onMouseUp={() => setIsSliderDragging(false)}
-                  onMouseLeave={() => setIsSliderDragging(false)}
-                  className="card-luxury overflow-hidden rounded-2xl cursor-col-resize"
-                >
-                  <div className="relative aspect-video bg-beige overflow-hidden group">
-                    {/* BEFORE IMAGE */}
-                    <div className="absolute inset-0">
-                      {userPhoto && (
-                        <img
-                          src={URL.createObjectURL(userPhoto)}
-                          alt="Before"
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute bottom-6 left-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-md"
-                      >
-                        <p className="text-white text-sm font-semibold">BEFORE</p>
-                      </motion.div>
-                    </div>
-
-                    {/* AFTER IMAGE (SLIDER) */}
-                    <div
-                      className="absolute inset-0 overflow-hidden transition-all"
-                      style={{ width: `${sliderPosition}%` }}
-                    >
-                      {resultImageUrl && imageLoadState['result'] !== 'error' ? (
-                        <>
-                          {imageLoadState['result'] !== 'loaded' && (
-                            <motion.div
-                              animate={{ opacity: [0.5, 1, 0.5] }}
-                              className="absolute inset-0 bg-warm-gray/20 z-10"
-                            />
-                          )}
-                          <img
-                            src={resultImageUrl}
-                            alt="After"
-                            className="w-screen h-full object-cover"
-                            onLoad={() => handleImageLoad('result')}
-                            onError={() => handleImageError('result', resultImageUrl)}
+                <div className="card-luxury p-2 overflow-hidden bg-white shadow-luxury-lg rounded-[2rem] border border-beige/40">
+                  <div className="relative aspect-[3/4] bg-ivory rounded-[1.75rem] overflow-hidden shadow-inner">
+                    {resultImageUrl && imageLoadState['result'] !== 'error' ? (
+                      <>
+                        {imageLoadState['result'] !== 'loaded' && (
+                          <motion.div
+                            animate={{ opacity: [0.5, 1, 0.5] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                            className="absolute inset-0 bg-warm-gray/10 z-10"
                           />
-                        </>
-                      ) : resultImageUrl ? (
-                        <div className="absolute inset-0 flex items-center justify-center bg-beige">
-                          <div className="text-center">
-                            <ImageOff size={32} className="text-warm-gray mx-auto mb-2" />
-                            <p className="text-xs text-warm-taupe">Result image unavailable</p>
-                          </div>
-                        </div>
-                      ) : null}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute bottom-6 right-6 px-4 py-2 rounded-full bg-gold-accent text-cream"
-                      >
-                        <p className="text-sm font-semibold">AFTER</p>
-                      </motion.div>
+                        )}
+                        {/* WATERMARK OVERLAY */}
+                        <div 
+                          className="absolute inset-0 pointer-events-none z-10 select-none"
+                          style={{
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg width='120' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-35 60 30)'%3E%3Ctext x='50%25' y='50%25' fill='rgba(255,255,255,0.4)' font-size='11' font-family='system-ui, sans-serif' font-weight='900' text-anchor='middle' dominant-baseline='middle' style='text-shadow: 0px 1px 2px rgba(0,0,0,0.7)'%3ETry on preview%3C/text%3E%3C/g%3E%3C/svg%3E")`,
+                            backgroundRepeat: 'repeat',
+                            backgroundSize: '120px 60px'
+                          }}
+                        />
+
+                        <img
+                          src={resultImageUrl}
+                          alt="Try-on Result"
+                          className="w-full h-full object-cover select-none"
+                          onLoad={() => handleImageLoad('result')}
+                          onError={() => handleImageError('result', resultImageUrl)}
+                          onContextMenu={(e) => e.preventDefault()}
+                          onDragStart={(e) => e.preventDefault()}
+                        />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-ivory/50">
+                        <ImageOff size={48} className="text-warm-gray mb-4 opacity-50" />
+                        <p className="text-sm font-medium text-warm-taupe">Result image unavailable</p>
+                      </div>
+                    )}
+                    
+                    {/* PREMIUM LABEL */}
+                    <div className="absolute top-4 left-4 z-20 flex gap-2">
+                      <div className="px-4 py-1.5 rounded-full bg-white/80 backdrop-blur-md border border-gold-accent/20 text-gold-accent shadow-luxury">
+                        <p className="text-[10px] font-black tracking-[0.2em]">VIRTUAL RESULT</p>
+                      </div>
                     </div>
 
-                    {/* SLIDER HANDLE */}
-                    <div
-                      className="absolute top-0 bottom-0 w-1 bg-gold-accent"
-                      style={{ left: `${sliderPosition}%` }}
+                    {/* MAXIMIZE BUTTON */}
+                    <button
+                      onClick={() => setSelectedImage(resultImageUrl)}
+                      className="absolute top-4 right-4 p-2.5 rounded-full bg-white/80 backdrop-blur-md border border-gold-accent/20 text-gold-accent shadow-luxury hover:bg-gold-accent hover:text-white transition-all z-20"
+                      title="View Fullscreen"
                     >
-                      <motion.div
-                        animate={{ x: [-2, 2, -2] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-gold-accent rounded-full flex items-center justify-center shadow-luxury cursor-grab active:cursor-grabbing"
-                      >
-                        <ChevronUp size={24} className="text-cream rotate-90" />
-                      </motion.div>
-                    </div>
+                      <Maximize2 size={16} />
+                    </button>
                   </div>
                 </div>
               </section>
 
               {/* ACTION BUTTONS */}
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-sm mx-auto">
                 <AnimatedButton
                   variant="secondary"
-                  onClick={() => navigate('/dashboard')}
-                  className="flex-1 flex items-center justify-center gap-2"
+                  onClick={() => {
+                    resetTryOn();
+                    navigate('/dashboard');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 text-xs font-bold"
                 >
-                  ← Back to Dashboard
+                  ← Dashboard
                 </AnimatedButton>
                 <AnimatedButton
                   variant="primary"
-                  className="flex-1 flex items-center justify-center gap-2"
+                  onClick={async () => {
+                    try {
+                      await saveTryOn(currentJob.id);
+                      showSuccess('Try-on saved!');
+                    } catch (error) {
+                      if (error.response?.status === 403 || error.response?.status === 429) {
+                        setShowUpgradeModal(true);
+                      } else {
+                        showError(error.response?.data?.detail || 'Failed to save');
+                      }
+                    }
+                  }}
+                  disabled={currentJob.is_saved}
+                  className="w-full sm:w-auto px-6 py-2.5 flex items-center justify-center gap-2 text-xs font-bold"
                 >
-                  <Download size={20} />
-                  Download Result
-                </AnimatedButton>
-                <AnimatedButton
-                  variant="primary"
-                  className="flex-1 flex items-center justify-center gap-2"
-                >
-                  <Share2 size={20} />
-                  Share
+                  <Download size={14} />
+                  {currentJob.is_saved ? 'Saved' : 'Save Look'}
                 </AnimatedButton>
               </div>
             </motion.div>
           )}
-      </AnimatePresence>
+        </AnimatePresence>
 
-        </div>
+      </div>
+
+      {/* FULL SCREEN IMAGE MODAL */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-10"
+          >
+            <div 
+              className="absolute inset-0 bg-charcoal/95 backdrop-blur-md" 
+              onClick={() => setSelectedImage(null)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-5xl max-h-[90vh] flex items-center justify-center"
+            >
+              <div className="relative inline-block max-w-full max-h-full">
+                {/* FULLSCREEN WATERMARK OVERLAY */}
+                <div 
+                  className="absolute inset-0 pointer-events-none z-10 select-none rounded-2xl overflow-hidden"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='160' height='80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-35 80 40)'%3E%3Ctext x='50%25' y='50%25' fill='rgba(255,255,255,0.4)' font-size='16' font-family='system-ui, sans-serif' font-weight='900' text-anchor='middle' dominant-baseline='middle' style='text-shadow: 0px 2px 3px rgba(0,0,0,0.7)'%3ETry on preview%3C/text%3E%3C/g%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'repeat',
+                    backgroundSize: '160px 80px'
+                  }}
+                />
+
+                <img
+                  src={selectedImage}
+                  alt="Large View"
+                  className="max-w-full max-h-[85vh] sm:max-h-[90vh] object-contain rounded-2xl shadow-luxury-lg select-none"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onDragStart={(e) => e.preventDefault()}
+                />
+              </div>
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-12 right-0 sm:top-0 sm:-right-12 p-4 text-white/50 hover:text-white transition-colors"
+              >
+                <X size={32} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* UPGRADE MODAL */}
       <AnimatePresence>
@@ -687,7 +1035,7 @@ export default function TryOnPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowUpgradeModal(false)}
-              className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-charcoal/60"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -700,17 +1048,17 @@ export default function TryOnPage() {
                 <div className="w-16 h-16 bg-gold-accent/10 rounded-full flex items-center justify-center mb-6 mx-auto">
                   <Crown size={32} className="text-gold-accent" />
                 </div>
-                
+
                 <h3 className="text-2xl font-bold text-charcoal text-center mb-3">
                   {isSubscriptionExpired ? 'Subscription Expired' : 'Daily Limit Reached'}
                 </h3>
-                
+
                 <p className="text-warm-taupe text-center mb-8">
                   {isSubscriptionExpired
                     ? "Your premium access has expired. Renew your subscription to continue creating stunning virtual looks."
                     : planCode === 'free'
-                    ? "You've used all your free credits for today. Upgrade to a premium plan to continue your style journey."
-                    : "You've reached your daily try-on limit for the " + planCode + " plan. Upgrade for more creations or try again tomorrow."}
+                      ? "You've used all your free credits for today. Upgrade to a premium plan to continue your style journey."
+                      : "You've reached your daily try-on limit for the " + planCode + " plan. Upgrade for more creations or try again tomorrow."}
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4">

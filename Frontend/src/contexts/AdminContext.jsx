@@ -1,50 +1,66 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import * as adminAPI from '@/services/api/admin';
+import { useAuth } from '@/hooks';
 
 const AdminContext = createContext();
 
 export const AdminProvider = ({ children }) => {
+  const { user: authUser, token: authTokens, logout: authLogout } = useAuth();
+  
+  // Derived state for immediate updates during render
+  const isAuthByAuthContext = authUser && authUser.kind === 'admin';
+  const tokenByAuthContext = isAuthByAuthContext ? authTokens : null;
+
   const [admin, setAdmin] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('admin_token') || null);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!token);
+  const [token, setToken] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [overview, setOverview] = useState(null);
   const [plans, setPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const adminLogin = useCallback(async (email, password) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await adminAPI.adminLogin(email, password);
-      const { access_token, admin: adminData } = response.data;
+  // Effective state used by the context
+  const effectiveIsAuthenticated = isAuthByAuthContext || isAuthenticated;
+  const effectiveToken = tokenByAuthContext || token;
+  const effectiveAdmin = isAuthByAuthContext ? authUser : admin;
 
-      localStorage.setItem('admin_token', access_token);
-      localStorage.setItem('admin', JSON.stringify(adminData));
-
-      setToken(access_token);
-      setAdmin(adminData);
-      setIsAuthenticated(true);
-
-      return response.data;
-    } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Admin login failed';
-      setError(errorMsg);
-      throw err;
-    } finally {
-      setIsLoading(false);
+  // Sync with AuthContext and handle legacy sessions
+  useEffect(() => {
+    if (isAuthByAuthContext) {
+      console.log('[AdminContext] Synchronized with active AuthContext admin session');
+    } else {
+      // Also check local storage for admin-only sessions (legacy/fallback)
+      const adminToken = localStorage.getItem('admin_token');
+      const adminData = localStorage.getItem('admin');
+      
+      if (adminToken && adminData) {
+        try {
+          const parsedAdmin = JSON.parse(adminData);
+          setAdmin(parsedAdmin);
+          setToken(adminToken);
+          setIsAuthenticated(true);
+        } catch (err) {
+          setIsAuthenticated(false);
+        }
+      }
     }
-  }, []);
+  }, [isAuthByAuthContext]);
 
   const adminLogout = useCallback(() => {
+    // Clear specialized storage
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin');
+    
+    // Also trigger main logout if this was an admin session from main login
+    if (authUser && authUser.kind === 'admin') {
+      authLogout();
+    }
 
     setToken(null);
     setAdmin(null);
     setIsAuthenticated(false);
     setError(null);
-  }, []);
+  }, [authUser, authLogout]);
 
   const fetchOverview = useCallback(async () => {
     setIsLoading(true);
@@ -113,14 +129,13 @@ export const AdminProvider = ({ children }) => {
   }, []);
 
   const value = {
-    admin,
-    token,
-    isAuthenticated,
+    admin: effectiveAdmin,
+    token: effectiveToken,
+    isAuthenticated: effectiveIsAuthenticated,
     overview,
     plans,
     isLoading,
     error,
-    adminLogin,
     adminLogout,
     fetchOverview,
     fetchPlans,

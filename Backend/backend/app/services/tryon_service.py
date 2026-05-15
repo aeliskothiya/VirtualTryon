@@ -2,6 +2,7 @@ import shutil
 import sys
 import logging
 from importlib import import_module
+from typing import Callable, Optional
 from functools import lru_cache
 from pathlib import Path
 
@@ -51,6 +52,10 @@ def run_tryon(
     output_path: str | Path,
     garment_photo_type: str | None = None,
     category: str | None = None,
+    num_timesteps: int | None = None,
+    guidance_scale: float | None = None,
+    segmentation_free: bool | None = None,
+    callback: Callable | None = None,
 ) -> None:
     person_image_path = Path(person_image_path)
     garment_image_path = Path(garment_image_path)
@@ -90,10 +95,11 @@ def run_tryon(
         garment_image=garment,
         category=resolved_category,
         garment_photo_type=resolved_garment_photo_type,
-        num_timesteps=settings.vton_num_timesteps,
-        guidance_scale=settings.vton_guidance_scale,
+        num_timesteps=num_timesteps if num_timesteps is not None else settings.vton_num_timesteps,
+        guidance_scale=guidance_scale if guidance_scale is not None else settings.vton_guidance_scale,
         seed=settings.vton_seed,
-        segmentation_free=settings.vton_segmentation_free,
+        segmentation_free=segmentation_free if segmentation_free is not None else settings.vton_segmentation_free,
+        callback=callback,
     )
     if not result.images:
         raise RuntimeError("Try-on pipeline returned no images")

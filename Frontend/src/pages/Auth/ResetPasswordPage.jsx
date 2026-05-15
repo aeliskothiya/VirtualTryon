@@ -58,7 +58,8 @@ export default function ResetPasswordPage() {
         navigate('/login');
       }, 3000);
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to reset password';
+      const detail = err.response?.data?.detail;
+      const errorMsg = typeof detail === 'object' ? detail.message : (detail || 'Failed to reset password');
       setFormError(errorMsg);
       showError(errorMsg);
     }
@@ -123,7 +124,7 @@ export default function ResetPasswordPage() {
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="input-field pl-12 pr-12"
+                        className="input-field !pl-14 pr-12"
                         disabled={isLoading}
                         autoFocus
                       />
@@ -148,7 +149,7 @@ export default function ResetPasswordPage() {
                         placeholder="••••••••"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="input-field pl-12 pr-12"
+                        className="input-field !pl-14 pr-12"
                         disabled={isLoading}
                       />
                       <button

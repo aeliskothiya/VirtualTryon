@@ -25,6 +25,12 @@ export const TryOnLockProvider = ({ children }) => {
     setShowCompletionNotification(true);
   }, []);
 
+  const abortTryOn = useCallback(() => {
+    setIsTryOnProcessing(false);
+    setTryOnProgress(0);
+    setShowCompletionNotification(false);
+  }, []);
+
   const dismissCompletion = useCallback(() => {
     setShowCompletionNotification(false);
   }, []);
@@ -37,6 +43,7 @@ export const TryOnLockProvider = ({ children }) => {
     startTryOn,
     updateProgress,
     completeTryOn,
+    abortTryOn,
     dismissCompletion,
   };
 

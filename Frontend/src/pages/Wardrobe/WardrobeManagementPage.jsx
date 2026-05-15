@@ -27,6 +27,7 @@ import {
 } from '@/utils/imageLoader';
 import { AnimatedButton } from '@/components/common/MicroInteractions';
 import { AnimatedStaggerContainer, AnimatedStaggerItem } from '@/components/common/AnimationComponents';
+import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 
 export default function WardrobeManagementPage() {
   const navigate = useNavigate();
@@ -37,27 +38,36 @@ export default function WardrobeManagementPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [previewFiles, setPreviewFiles] = useState([]);
-  const [uploadType, setUploadType] = useState('top');
+  const [uploadType, setUploadType] = useState(null); // Initialize as null to force selection
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
-  const [imageLoadState, setImageLoadState] = useState({}); // Track image loading state
+  const [imageLoadState, setImageLoadState] = useState({}); 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const activeItemCount = items.filter((item) => item.active_status === 'active').length;
   const wardrobeLimit = profile?.wardrobe_limit;
-  const canUploadMore =
-    typeof wardrobeLimit !== 'number' || activeItemCount < wardrobeLimit;
+  const spaceRemaining = typeof wardrobeLimit === 'number' ? Math.max(0, wardrobeLimit - activeItemCount) : Infinity;
+  const canUploadMore = spaceRemaining > 0 && spaceRemaining >= previewFiles.length;
+  const isSubscriptionExpired = profile?.is_subscription_expired;
 
   useEffect(() => {
-    fetchItems(true); // Fetch all items including inactive ones
+    fetchItems(true); 
   }, []);
 
-  const filteredItems = activeFilter === 'all' 
-    ? items 
-    : items.filter(item => item.type === activeFilter);
+  const filteredItems = items.filter(item => {
+    const matchesCategory = activeFilter === 'all' || item.type === activeFilter;
+    const matchesStatus = statusFilter === 'all' || item.active_status === statusFilter;
+    return matchesCategory && matchesStatus;
+  });
 
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isSubscriptionExpired) return;
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
     } else if (e.type === 'dragleave') {
@@ -69,6 +79,10 @@ export default function WardrobeManagementPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    if (isSubscriptionExpired) {
+      showError('Your subscription has expired. Please renew to add items.');
+      return;
+    }
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) await processFiles(files);
   };
@@ -85,7 +99,7 @@ export default function WardrobeManagementPage() {
         }
       }
       if (validFiles.length > 0) {
-        setPreviewFiles(validFiles);
+        setPreviewFiles((prev) => [...prev, ...validFiles]);
       }
     } catch (error) {
       showError('File validation failed');
@@ -98,8 +112,17 @@ export default function WardrobeManagementPage() {
       return;
     }
 
+    if (!uploadType) {
+      showError('Please select an item category (Top, Bottom, or One-Piece)');
+      return;
+    }
+
     if (!canUploadMore) {
-      showError('Wardrobe limit reached. Upgrade your plan to add more items.');
+      if (spaceRemaining <= 0) {
+        showError('Wardrobe limit reached. Upgrade your plan to add more items.');
+      } else {
+        showError(`You only have space for ${spaceRemaining} more item(s). Please remove some files or upgrade your plan.`);
+      }
       return;
     }
 
@@ -136,14 +159,12 @@ export default function WardrobeManagementPage() {
   };
 
   const handleDelete = async (itemId) => {
-    if (window.confirm('Remove this item from your wardrobe?')) {
-      try {
-        await deleteItem(itemId);
-        showSuccess('Item removed');
-        await fetchItems(true);
-      } catch (error) {
-        showError(error.message || 'Delete failed');
-      }
+    try {
+      await deleteItem(itemId);
+      showSuccess('Item removed');
+      await fetchItems(true);
+    } catch (error) {
+      showError(error.message || 'Delete failed');
     }
   };
 
@@ -195,12 +216,12 @@ export default function WardrobeManagementPage() {
   };
 
   return (
-    <div className="min-h-screen bg-cream pb-20">
+    <div className="min-h-screen bg-cream pb-8">
       {/* HEADER */}
       <motion.header
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 bg-cream/80 backdrop-blur-md border-b border-warm-gray/30 px-4 sm:px-8 py-6"
+        className="sticky top-0 z-40 bg-white border-b border-warm-gray/30 px-4 sm:px-8 py-4"
       >
         <div className="container-luxury flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -235,13 +256,13 @@ export default function WardrobeManagementPage() {
         </div>
       </motion.header>
 
-      <div className="container-luxury section-padding">
+      <div className="container-luxury py-6">
         {/* UPLOAD SECTION */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="mb-16"
+          className="mb-8"
         >
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* UPLOAD CARD */}
@@ -251,11 +272,10 @@ export default function WardrobeManagementPage() {
               onDragOver={handleDrag}
               onDrop={handleDrop}
               animate={dragActive ? { scale: 1.02 } : { scale: 1 }}
-              className={`lg:col-span-2 relative rounded-2xl border-2 border-dashed p-12 sm:p-16 transition-all cursor-pointer ${
-                dragActive
+              className={`lg:col-span-2 relative rounded-2xl border-2 border-dashed p-6 sm:p-8 transition-all cursor-pointer ${dragActive
                   ? 'border-gold-accent bg-gold-accent/5'
                   : 'border-warm-gray/50 bg-ivory hover:border-gold-accent hover:bg-gold-accent/2'
-              }`}
+                }`}
             >
               {previewFiles.length > 0 ? (
                 <motion.div
@@ -280,7 +300,7 @@ export default function WardrobeManagementPage() {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setPreviewFiles(previewFiles.filter((_, i) => i !== index))}
-                          className="absolute top-1 right-1 bg-rose-dust text-white rounded-full p-1 opacity-0 hover:opacity-100 transition-opacity"
+                          className="absolute top-2 right-2 bg-rose-dust text-white rounded-full p-1.5 shadow-md opacity-100 transition-opacity"
                           title="Remove file"
                         >
                           <X size={14} />
@@ -297,19 +317,25 @@ export default function WardrobeManagementPage() {
                     </p>
                   </div>
                   <div className="flex gap-4 justify-center pt-4 flex-wrap">
-                    <AnimatedButton 
+                    <AnimatedButton
                       variant="secondary"
                       onClick={() => setPreviewFiles([])}
                       disabled={uploading}
                     >
-                      Clear All
+                      Cancel
                     </AnimatedButton>
-                    <AnimatedButton 
+                    <AnimatedButton
                       variant="primary"
                       onClick={handleUpload}
                       disabled={uploading || !canUploadMore}
                     >
-                      {uploading ? `Uploading (${previewFiles.length})...` : canUploadMore ? `Upload ${previewFiles.length}` : 'Wardrobe Full'}
+                      {uploading 
+                        ? `Uploading (${previewFiles.length})...` 
+                        : spaceRemaining <= 0 
+                          ? 'Wardrobe Full' 
+                          : !canUploadMore 
+                            ? `Only space for ${spaceRemaining} more` 
+                            : `Upload ${previewFiles.length}`}
                     </AnimatedButton>
                   </div>
                 </motion.div>
@@ -317,16 +343,16 @@ export default function WardrobeManagementPage() {
                 <label className="cursor-pointer block">
                   <div className="flex flex-col items-center justify-center py-8">
                     <motion.div
-                      animate={{ y: [0, -8, 0] }}
+                      animate={{ y: [0, -4, 0] }}
                       transition={{ duration: 2.5, repeat: Infinity }}
-                      className="mb-6"
+                      className="mb-4"
                     >
-                      <Upload size={56} className="text-gold-accent" />
+                      <Upload size={40} className="text-gold-accent" />
                     </motion.div>
-                    <h3 className="text-2xl font-semibold text-charcoal mb-2 text-center">
+                    <h3 className="text-xl font-semibold text-charcoal mb-1 text-center">
                       Add to your collection
                     </h3>
-                    <p className="text-warm-taupe text-center mb-6 max-w-sm">
+                    <p className="text-sm text-warm-taupe text-center mb-4 max-w-sm">
                       Drag your fashion pieces here or click to browse your files (multiple selection supported)
                     </p>
                     <input
@@ -334,6 +360,10 @@ export default function WardrobeManagementPage() {
                       accept="image/*"
                       multiple
                       onChange={(e) => {
+                        if (isSubscriptionExpired) {
+                          showError('Your subscription has expired. Please renew to add items.');
+                          return;
+                        }
                         if (e.target.files) processFiles(Array.from(e.target.files));
                       }}
                       className="hidden"
@@ -357,23 +387,69 @@ export default function WardrobeManagementPage() {
                 <label className="block text-sm font-semibold text-charcoal mb-4">
                   Item Category
                 </label>
-                <motion.select
-                  value={uploadType}
-                  onChange={(e) => setUploadType(e.target.value)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-4 px-6 rounded-xl font-semibold border-2 border-warm-gray bg-ivory text-charcoal transition-all appearance-none cursor-pointer hover:border-gold-accent focus:outline-none focus:border-gold-accent focus:ring-2 focus:ring-gold-accent/20"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23000000' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 1rem center',
-                    paddingRight: '2.5rem',
-                  }}
-                >
-                  <option value="top">👔 Tops</option>
-                  <option value="bottom">👖 Bottoms</option>
-                  <option value="one-piece">👗 One-Pieces</option>
-                </motion.select>
+                <div className="relative">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className={`w-full py-4 px-6 rounded-xl font-semibold border-2 transition-all flex items-center justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold-accent/20 ${
+                      !uploadType 
+                        ? 'border-warm-gray bg-white text-warm-taupe italic' 
+                        : 'border-gold-accent bg-ivory text-charcoal'
+                    }`}
+                  >
+                    <span>
+                      {!uploadType ? 'Select Category...' : 
+                       uploadType === 'top' ? '👔 Tops' : 
+                       uploadType === 'bottom' ? '👖 Bottoms' : '👗 One-Pieces'}
+                    </span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </motion.button>
+                  
+                  <AnimatePresence>
+                    {isDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute top-full left-0 right-0 mt-2 z-50 bg-white rounded-xl shadow-luxury border border-warm-gray/20 overflow-hidden"
+                      >
+                        {[
+                          { value: 'top', label: '👔 Tops' },
+                          { value: 'bottom', label: '👖 Bottoms' },
+                          { value: 'one-piece', label: '👗 One-Pieces' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            onClick={() => {
+                              setUploadType(opt.value);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full px-6 py-4 flex items-center gap-3 hover:bg-ivory transition-colors text-left font-medium ${
+                              uploadType === opt.value ? 'bg-gold-accent/10 text-gold-accent' : 'text-charcoal'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               <motion.button
@@ -394,24 +470,57 @@ export default function WardrobeManagementPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.25 }}
-          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-12 pb-8 border-b border-warm-gray/50"
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-warm-gray/50"
         >
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {[
-              { value: 'all', label: 'All Items' },
-              { value: 'top', label: 'Tops' },
-              { value: 'bottom', label: 'Bottoms' },
-              { value: 'one-piece', label: 'One-Pieces' },
-            ].map((f) => (
-              <AnimatedButton
-                key={f.value}
-                variant={activeFilter === f.value ? 'primary' : 'secondary'}
-                onClick={() => setActiveFilter(f.value)}
-                className="whitespace-nowrap"
-              >
-                {f.label}
-              </AnimatedButton>
-            ))}
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+            {/* CATEGORY FILTER */}
+            <div className="flex p-1 bg-ivory rounded-xl border border-warm-gray/20 overflow-x-auto no-scrollbar">
+              {[
+                { value: 'all', label: 'All Items' },
+                { value: 'top', label: 'Tops' },
+                { value: 'bottom', label: 'Bottoms' },
+                { value: 'one-piece', label: 'One-Pieces' },
+              ].map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => {
+                    setActiveFilter(f.value);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-6 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    activeFilter === f.value
+                      ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                      : 'text-warm-taupe hover:text-charcoal'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* STATUS FILTER */}
+            <div className="flex p-1 bg-ivory rounded-xl border border-warm-gray/20 overflow-x-auto no-scrollbar">
+              {[
+                { value: 'all', label: 'Show All' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Deactivated' },
+              ].map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => {
+                    setStatusFilter(f.value);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-6 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    statusFilter === f.value
+                      ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                      : 'text-warm-taupe hover:text-charcoal'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -419,11 +528,10 @@ export default function WardrobeManagementPage() {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg transition-all ${
-                viewMode === 'grid'
+              className={`p-2 rounded-lg transition-all ${viewMode === 'grid'
                   ? 'bg-gold-accent text-cream'
                   : 'bg-ivory text-charcoal hover:bg-beige'
-              }`}
+                }`}
               title="Grid view"
             >
               <LayoutGrid size={20} />
@@ -432,11 +540,10 @@ export default function WardrobeManagementPage() {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-lg transition-all ${
-                viewMode === 'list'
+              className={`p-2 rounded-lg transition-all ${viewMode === 'list'
                   ? 'bg-gold-accent text-cream'
                   : 'bg-ivory text-charcoal hover:bg-beige'
-              }`}
+                }`}
               title="List view"
             >
               <List size={20} />
@@ -447,7 +554,7 @@ export default function WardrobeManagementPage() {
         {/* ITEMS DISPLAY */}
         <AnimatePresence mode="wait">
           {isLoading ? (
-            <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6' : 'space-y-4'}`}>
+            <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6' : 'space-y-4'}`}>
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="skeleton h-80 rounded-xl" />
               ))}
@@ -470,39 +577,37 @@ export default function WardrobeManagementPage() {
               </p>
             </motion.div>
           ) : (
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className={viewMode === 'grid' 
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'
-                : 'space-y-4'
-              }
-            >
-              {filteredItems.map((item) => (
-                <motion.div
+            <div className="space-y-6">
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className={viewMode === 'grid'
+                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4'
+                  : 'space-y-4'
+                }
+              >
+                {filteredItems
+                  .slice((currentPage - 1) * 10, currentPage * 10)
+                  .map((item) => (
+                  <motion.div
                   key={item.id}
                   variants={itemVariants}
                   whileHover="hover"
                   className="group"
                 >
-                  <div className={`card-hover relative overflow-hidden transition-all ${
-                    item.active_status === 'inactive' ? 'opacity-70 grayscale-[0.3]' : ''
-                  } ${
-                    viewMode === 'list' ? 'flex gap-4 items-center' : 'space-y-4'
-                  }`}>
-                    {/* STATUS BADGE */}
-                    <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                        item.active_status === 'active' 
-                          ? 'bg-sage text-white' 
-                          : 'bg-warm-taupe text-white'
-                      }`}>
-                        {item.active_status}
-                      </span>
-                    </div>
+                  <div className={`card-garment relative overflow-hidden transition-all hover:ring-1 hover:ring-gold-accent ${item.active_status === 'inactive' ? 'opacity-70 grayscale-[0.3]' : ''
+                    } ${viewMode === 'list' ? 'flex gap-4 items-center p-2' : 'space-y-4'
+                    }`}>
                     {/* IMAGE */}
-                    <div className={`relative ${viewMode === 'list' ? 'w-24 h-24 flex-shrink-0' : 'aspect-square'} overflow-hidden rounded-lg bg-beige`}>
+                    <div className={`relative ${viewMode === 'list' ? 'w-24 h-24 flex-shrink-0' : 'aspect-[4/5]'} overflow-hidden rounded-md bg-white shadow-inner`}>
+                      {item.active_status === 'inactive' && (
+                        <div className="absolute inset-0 bg-charcoal/10 backdrop-grayscale-[0.5] z-[1] pointer-events-none flex items-center justify-center">
+                          <span className="px-2 py-1 bg-rose-dust text-white text-[10px] font-bold rounded-full shadow-lg">
+                            INACTIVE
+                          </span>
+                        </div>
+                      )}
                       {imageLoadState[item.id] !== 'error' ? (
                         <>
                           {/* Loading Skeleton */}
@@ -518,7 +623,7 @@ export default function WardrobeManagementPage() {
                             whileHover={{ scale: 1.1 }}
                             src={getImageUrl(item)}
                             alt={item.type}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain p-2"
                             onLoad={(e) => handleImageLoad(item.id, item.image_url)}
                             onError={(e) => handleImageError(item.id, item.image_url)}
                           />
@@ -535,7 +640,7 @@ export default function WardrobeManagementPage() {
                     </div>
 
                     {/* INFO */}
-                    <div className={viewMode === 'list' ? 'flex-1' : ''}>
+                    <div className={`px-2 pb-2 ${viewMode === 'list' ? 'flex-1 pt-2' : ''}`}>
                       <div className="flex items-start justify-between mb-2">
                         <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-sage/10 text-sage">
                           {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
@@ -545,22 +650,24 @@ export default function WardrobeManagementPage() {
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => handleToggleStatus(item)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              item.active_status === 'active' 
-                                ? 'hover:bg-warm-taupe/10 text-warm-taupe' 
+                            className={`p-2 rounded-lg transition-colors ${item.active_status === 'active'
+                                ? 'hover:bg-warm-taupe/10 text-warm-taupe'
                                 : 'hover:bg-sage/10 text-sage'
-                            }`}
+                              }`}
                             title={item.active_status === 'active' ? 'Deactivate' : 'Activate'}
                           >
                             {item.active_status === 'active' ? <EyeOff size={16} /> : <Eye size={16} />}
                           </motion.button>
-                          <motion.button
-                            whileHover={{ rotate: 90 }}
-                            onClick={() => handleDelete(item.id)}
-                            className="p-2 hover:bg-rose-dust/10 rounded-lg transition-colors"
+                          <button
+                            onClick={() => {
+                              setItemToDelete(item.id);
+                              setShowDeleteModal(true);
+                            }}
+                            className="p-2 hover:bg-rose-dust/10 rounded-lg transition-colors text-rose-dust"
+                            title="Remove"
                           >
-                            <Trash2 size={16} className="text-rose-dust" />
-                          </motion.button>
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
 
@@ -587,9 +694,44 @@ export default function WardrobeManagementPage() {
                   </div>
                 </motion.div>
               ))}
-            </motion.div>
+              </motion.div>
+
+              {Math.ceil(filteredItems.length / 10) > 1 && (
+                <div className="flex justify-center items-center gap-4">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm font-semibold text-charcoal">
+                    Page {currentPage} of {Math.ceil(filteredItems.length / 10)}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(p + 1, Math.ceil(filteredItems.length / 10)))}
+                    disabled={currentPage === Math.ceil(filteredItems.length / 10)}
+                    className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </AnimatePresence>
+        <ConfirmationModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setItemToDelete(null);
+          }}
+          onConfirm={() => handleDelete(itemToDelete)}
+          title="Remove Item"
+          message="Are you sure you want to remove this item from your wardrobe? This action cannot be undone."
+          confirmText="Remove"
+          type="danger"
+        />
       </div>
     </div>
   );

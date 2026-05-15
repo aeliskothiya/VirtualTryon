@@ -15,9 +15,14 @@ export default function LoginPage() {
     if (isAuthenticated && user) {
       console.log('[LoginPage] Already authenticated, redirecting...', {
         isAuthenticated,
+        kind: user.kind,
         is_fully_registered: user.is_fully_registered,
       });
-      if (user.is_fully_registered) {
+      
+      // Route admins to admin dashboard
+      if (user.kind === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (user.is_fully_registered) {
         navigate('/dashboard', { replace: true });
       } else {
         navigate('/register/step-2', { replace: true });
@@ -51,13 +56,20 @@ export default function LoginPage() {
     try {
       const result = await login(email, password);
       showSuccess('Welcome back!');
-      if (result.user.is_fully_registered) {
+      
+      // Handle both user and admin logins
+      const kind = result.kind || 'user';
+      
+      if (kind === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (result.user.is_fully_registered) {
         navigate('/dashboard');
       } else {
         navigate('/register/step-2');
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Login failed. Please try again.';
+      const detail = err.response?.data?.detail;
+      const errorMsg = typeof detail === 'object' ? detail.message : (detail || 'Login failed. Please try again.');
       setFormError(errorMsg);
       showError(errorMsg);
     }

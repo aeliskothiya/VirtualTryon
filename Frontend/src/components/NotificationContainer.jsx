@@ -8,26 +8,26 @@ export default function NotificationContainer() {
   const getBackgroundColor = (type) => {
     switch (type) {
       case 'success':
-        return 'bg-green-500/20 border-green-500/50';
+        return 'bg-white border-green-200 shadow-lg';
       case 'error':
-        return 'bg-red-500/20 border-red-500/50';
+        return 'bg-white border-red-200 shadow-lg';
       case 'warning':
-        return 'bg-yellow-500/20 border-yellow-500/50';
+        return 'bg-white border-yellow-200 shadow-lg';
       default:
-        return 'bg-blue-500/20 border-blue-500/50';
+        return 'bg-white border-blue-200 shadow-lg';
     }
   };
 
   const getTextColor = (type) => {
     switch (type) {
       case 'success':
-        return 'text-green-300';
+        return 'text-green-600';
       case 'error':
-        return 'text-red-300';
+        return 'text-red-600';
       case 'warning':
-        return 'text-yellow-300';
+        return 'text-yellow-600';
       default:
-        return 'text-blue-300';
+        return 'text-blue-600';
     }
   };
 
@@ -44,16 +44,19 @@ export default function NotificationContainer() {
             className="mb-3 pointer-events-auto"
           >
             <div
-              className={`glass border rounded-lg px-4 py-3 flex items-center justify-between gap-3 min-w-80 ${getBackgroundColor(
+              className={`border rounded-xl px-5 py-4 flex items-center justify-between gap-4 min-w-[320px] ${getBackgroundColor(
                 notif.type
               )}`}
             >
-              <p className={`${getTextColor(notif.type)} font-medium`}>
-                {notif.message}
-              </p>
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${notif.type === 'success' ? 'bg-green-500' : notif.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                <p className={`${getTextColor(notif.type)} font-semibold text-sm`}>
+                  {notif.message}
+                </p>
+              </div>
               <button
                 onClick={() => removeNotification(notif.id)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
               >
                 <X size={18} />
               </button>

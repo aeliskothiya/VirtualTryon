@@ -41,6 +41,13 @@ class AdminOverviewOut(BaseModel):
     total_tryons: int
     total_recommendations: int
     total_saved_tryons: int
+    total_wardrobe_items: int
+    total_revenue: float
+    monthly_revenue: float
+    yearly_revenue: float
+    monthly_chart: list[dict]
+    yearly_chart: list[dict]
+    subscription_distribution: list[dict]
 
 __all__ = [
     "AdminAuthResponse",

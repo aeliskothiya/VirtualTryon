@@ -3,7 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Callable
 
 import cv2
 import numpy as np
@@ -156,6 +156,7 @@ class TryOnPipeline:
         guidance_scale: float = 1.5,
         skip_cfg_last_n_steps: int = 1,
         use_tqdm: bool = True,
+        callback: Optional[Callable] = None,
     ) -> List[Image.Image]:
         """Euler sampling with CFG."""
         device, dtype = ca_images.device, ca_images.dtype
@@ -185,6 +186,13 @@ class TryOnPipeline:
                 disable=not use_tqdm,
             )
         ):
+            if callback is not None:
+                print(f"DEBUG: Calling callback for step {step_idx + 1}/{num_timesteps}", flush=True)
+                try:
+                    callback(step_idx + 1, num_timesteps)
+                except Exception as e:
+                    self.logger.warning(f"Progress callback failed: {e}")
+
             dt = t_prev - t_curr
             t_vec = torch.full((batch_size,), t_curr, dtype=dtype, device=device)
 
@@ -198,7 +206,7 @@ class TryOnPipeline:
                 v_guided = v_u + guidance_scale * (v_c - v_u)
 
             images = images + dt * v_guided
-
+            
         images = images.to(dtype=torch.float).clamp_(-1.0, 1.0)
         return [tensor_to_pil(img, unnormalize=True) for img in images]
 
@@ -215,6 +223,7 @@ class TryOnPipeline:
         skip_cfg_last_n_steps: int = 1,
         seed: int = 42,
         segmentation_free: bool = True,
+        callback: Optional[Callable] = None,
     ) -> PipelineOutput:
         """
         Run virtual try-on inference.
@@ -327,6 +336,7 @@ class TryOnPipeline:
             num_timesteps=num_timesteps,
             guidance_scale=guidance_scale,
             skip_cfg_last_n_steps=skip_cfg_last_n_steps,
+            callback=callback,
         )
 
         # Unpad outputs

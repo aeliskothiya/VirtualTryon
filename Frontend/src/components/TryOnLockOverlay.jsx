@@ -1,88 +1,55 @@
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
 import { useTryOnLock } from '@/contexts/TryOnLockContext';
 
 const TryOnLockOverlay = () => {
   const { isTryOnProcessing, tryOnProgress, showCompletionNotification, completionMessage, dismissCompletion } = useTryOnLock();
 
+  // Auto-dismiss logic
+  useEffect(() => {
+    let timer;
+    if (showCompletionNotification) {
+      timer = setTimeout(() => {
+        dismissCompletion();
+      }, 5000);
+    }
+    return () => clearTimeout(timer);
+  }, [showCompletionNotification, dismissCompletion]);
+
   return (
     <AnimatePresence>
-      {/* Processing Overlay */}
-      {isTryOnProcessing && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 flex items-center justify-center"
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-6 max-w-sm"
-          >
-            {/* Spinner */}
-            <div className="relative w-16 h-16">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                className="absolute inset-0 border-4 border-transparent border-t-gold-accent border-r-gold-accent rounded-full"
-              />
-            </div>
-
-            {/* Text */}
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-charcoal mb-2">
-                Generating Your Try-On
-              </h3>
-              <p className="text-sm text-warm-gray">
-                This may take up to 45 minutes. You can navigate elsewhere, but actions are disabled.
-              </p>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="w-full bg-warm-gray/20 rounded-full h-2 overflow-hidden">
-              <motion.div
-                initial={{ width: '0%' }}
-                animate={{ width: `${tryOnProgress}%` }}
-                className="h-full bg-gradient-gold rounded-full"
-              />
-            </div>
-
-            <p className="text-xs text-warm-gray">{tryOnProgress}% complete</p>
-          </motion.div>
-        </motion.div>
-      )}
-
       {/* Completion Notification */}
       {showCompletionNotification && (
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, x: 100 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 100 }}
           transition={{ duration: 0.3 }}
-          className="fixed top-4 right-4 bg-white rounded-2xl shadow-2xl p-6 z-50 max-w-sm border-l-4 border-gold-accent"
+          className="fixed top-4 right-4 z-50 pointer-events-auto"
         >
-          <div className="flex gap-4 items-start">
-            <div className="text-2xl">✨</div>
-            <div className="flex-1">
-              <h4 className="font-semibold text-charcoal">{completionMessage}</h4>
-              <p className="text-sm text-warm-gray mt-1">Check your Try-On page for results</p>
+          <div className="bg-white border border-green-200 rounded-xl px-5 py-4 flex items-center justify-between gap-4 min-w-[320px] shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <p className="text-green-600 font-semibold text-sm">
+                {completionMessage}
+              </p>
             </div>
             <button
               onClick={dismissCompletion}
-              className="text-warm-gray hover:text-charcoal transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
             >
-              ✕
+              <X size={18} />
             </button>
           </div>
 
-          {/* Auto-dismiss after 5 seconds */}
+          {/* Auto-dismiss timer visual */}
           <motion.div
             initial={{ scaleX: 1 }}
             animate={{ scaleX: 0 }}
             transition={{ duration: 5, ease: 'linear' }}
             onAnimationComplete={dismissCompletion}
-            className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-accent origin-left"
+            className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 origin-left rounded-b-xl"
           />
         </motion.div>
       )}

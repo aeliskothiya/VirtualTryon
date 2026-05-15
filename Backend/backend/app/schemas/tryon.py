@@ -13,6 +13,8 @@ class TryOnJobOut(BaseModel):
     status: str
     error_message: str | None = None
     is_saved: bool = False
+    progress: int | None = None
+    completed_at: datetime | None = None
     remaining_tryons_today: int | None = None
     created_at: datetime
 
