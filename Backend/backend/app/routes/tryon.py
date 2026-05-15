@@ -22,7 +22,9 @@ def tryon_route_help() -> dict:
 
 @router.post("", response_model=TryOnJobOut, status_code=status.HTTP_201_CREATED)
 async def create_tryon_route(
-    top_item_id: str = Form(...),
+    top_item_id: str | None = Form(default=None),
+    temp_garment_filename: str | None = Form(default=None),
+    garment_category: str | None = Form(default=None),
     override_photo: UploadFile | None = File(default=None),
     garment_photo_type: str = Form(default="flat-lay"),
     vton_num_timesteps: int | None = Form(default=None),
@@ -37,6 +39,8 @@ async def create_tryon_route(
         garment_photo_type, 
         current_user, 
         db,
+        temp_garment_filename=temp_garment_filename,
+        garment_category=garment_category,
         vton_num_timesteps=vton_num_timesteps,
         vton_guidance_scale=vton_guidance_scale,
         vton_segmentation_free=vton_segmentation_free

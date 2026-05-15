@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class TryOnJobOut(BaseModel):
     id: str
     user_id: str
-    top_item_id: str
+    top_item_id: str | None = None
     user_photo_path: str | None = None
     input_photo_used: str
     output_url: str | None = None

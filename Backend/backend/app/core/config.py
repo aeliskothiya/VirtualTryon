@@ -128,6 +128,11 @@ class Settings:
         self.otp_resend_cooldown_seconds = int(os.getenv("OTP_RESEND_COOLDOWN_SECONDS", "60"))
         self.otp_max_verify_attempts = int(os.getenv("OTP_MAX_VERIFY_ATTEMPTS", "5"))
 
+        # Cloudinary Configuration
+        self.cloudinary_cloud_name = _clean(os.getenv("CLOUDINARY_CLOUD_NAME")) or ""
+        self.cloudinary_api_key = _clean(os.getenv("CLOUDINARY_API_KEY")) or ""
+        self.cloudinary_api_secret = _clean(os.getenv("CLOUDINARY_API_SECRET")) or ""
+
 
 settings = Settings()
 

@@ -54,15 +54,22 @@ export const TryOnProvider = ({ children }) => {
     }
   }, []);
 
-  const createTryOn = useCallback(async (garmentItemId, overridePhoto = null, garmentPhotoType = 'flat-lay', advancedOptions = {}) => {
+  const createTryOn = useCallback(async (garmentItemId, overridePhoto = null, garmentPhotoType = 'flat-lay', advancedOptions = {}, tempGarmentFilename = null, garmentCategory = null) => {
     setIsProcessing(true);
     setProcessingProgress(0);
     setError(null);
 
     try {
       const formData = new FormData();
-      // Keep 'top_item_id' for backward API compatibility
-      formData.append('top_item_id', garmentItemId);
+      if (garmentItemId) {
+        formData.append('top_item_id', garmentItemId);
+      }
+      if (tempGarmentFilename) {
+        formData.append('temp_garment_filename', tempGarmentFilename);
+      }
+      if (garmentCategory) {
+        formData.append('garment_category', garmentCategory);
+      }
 
       if (overridePhoto) {
         formData.append('override_photo', overridePhoto);

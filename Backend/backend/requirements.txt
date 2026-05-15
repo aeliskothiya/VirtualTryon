@@ -17,3 +17,5 @@ matplotlib
 torch
 torchvision
 transformers
+playwright
+httpx

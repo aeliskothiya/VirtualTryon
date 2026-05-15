@@ -8,6 +8,7 @@ from app.database.repositories.user_repository import get_user, get_user_by_emai
 from app.schemas import AuthResponse, LoginRequest, RegisterStepOneRequest
 from app.services.auth_service import create_access_token, get_password_hash, verify_password
 from app.services.storage_service import absolute_to_media_url, create_profile_photo_path, save_upload_file
+from app.services.cloudinary_service import upload_to_cloudinary
 from app.services.subscription_service import DEFAULT_SUBSCRIPTION_PLAN
 from app.utils.helpers import serialize_document, utcnow
 
@@ -53,15 +54,15 @@ def register_step_two(gender_preference: str, photo: UploadFile, current_user: d
     if gender_preference not in {"male", "female", "other"}:
         raise HTTPException(status_code=400, detail="Gender preference must be male, female, or other")
 
-    destination = create_profile_photo_path(str(current_user["_id"]), photo.filename)
-    save_upload_file(photo, destination)
+    # Upload profile photo to Cloudinary
+    profile_photo_url = upload_to_cloudinary(photo.file, folder=f"profiles/{current_user['_id']}")
 
     db.users.update_one(
         {"_id": current_user["_id"]},
         {
             "$set": {
                 "gender_preference": gender_preference,
-                "profile_photo_url": absolute_to_media_url(destination),
+                "profile_photo_url": profile_photo_url,
                 "is_fully_registered": True,
                 "updated_at": utcnow(),
             }

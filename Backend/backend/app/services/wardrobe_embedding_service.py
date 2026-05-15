@@ -9,6 +9,8 @@ from PIL import Image
 
 from app.core.config import settings
 from app.services.storage_service import media_url_to_absolute
+from app.utils.helpers import ensure_local_file
+import os
 
 
 def _normalize_item_type(item_type: str) -> str:
@@ -90,11 +92,14 @@ def _is_valid_vector(value: Any) -> bool:
 
 
 def embed_new_wardrobe_item(user_id: str, item_id: str, item_type: str, image_url: str) -> None:
-    image_path = media_url_to_absolute(image_url)
-    if image_path is None or not image_path.exists():
-        raise RuntimeError(f"Wardrobe image not found for embedding: {image_url}")
-
-    embedding = _extract_embedding_vector(image_path)
+    local_path = ensure_local_file(image_url)
+    
+    try:
+        embedding = _extract_embedding_vector(Path(local_path))
+    finally:
+        # Cleanup if it was a downloaded file
+        if local_path != image_url and os.path.exists(local_path):
+            os.remove(local_path)
     embeddings_path = _embedding_file_path(user_id)
     payload = _load_embeddings(embeddings_path)
 
@@ -124,11 +129,14 @@ def get_or_create_item_embedding(
     if isinstance(existing, dict) and _is_valid_vector(existing.get("vector")):
         return existing["vector"], False
 
-    image_path = media_url_to_absolute(image_url)
-    if image_path is None or not image_path.exists():
-        raise RuntimeError(f"Wardrobe image not found for embedding: {image_url}")
-
-    embedding = _extract_embedding_vector(image_path)
+    local_path = ensure_local_file(image_url)
+    
+    try:
+        embedding = _extract_embedding_vector(Path(local_path))
+    finally:
+        # Cleanup if it was a downloaded file
+        if local_path != image_url and os.path.exists(local_path):
+            os.remove(local_path)
     payload["items"][str(item_id)] = {
         "type": _normalize_item_type(item_type),
         "image_url": image_url,

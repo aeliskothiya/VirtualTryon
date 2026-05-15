@@ -17,6 +17,9 @@ logger = logging.getLogger("uvicorn.error")
 app = FastAPI(title="FashionAI Backend API", version="1.0.0")
 
 import time
+import asyncio
+import os
+from pathlib import Path
 from fastapi import Request
 
 app.add_middleware(
@@ -50,8 +53,30 @@ app.include_router(tryon.router)
 app.include_router(recommendations.router)
 
 
+async def temp_folder_cleanup_task():
+    while True:
+        try:
+            temp_dir = settings.media_root / "temp"
+            if temp_dir.exists():
+                now = time.time()
+                count = 0
+                for f in temp_dir.iterdir():
+                    if f.is_file():
+                        file_age = now - f.stat().st_mtime
+                        # 24 hours = 86400 seconds
+                        if file_age > 86400:
+                            os.remove(f)
+                            count += 1
+                if count > 0:
+                    logger.info(f"Background cleanup: deleted {count} temporary files older than 24 hours.")
+        except Exception as e:
+            logger.error(f"Error in temp folder cleanup task: {e}")
+        # Sleep for 1 hour before checking again
+        await asyncio.sleep(3600)
+
 @app.on_event("startup")
 def startup_event():
+    asyncio.create_task(temp_folder_cleanup_task())
     tryon_routes = [
         {
             "path": route.path,

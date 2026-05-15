@@ -48,3 +48,7 @@ Backend/TryOn/static/results/
 Backend/TryOn/fashn-vton-1.5/weights/
 Backend/TryOn/static/uploads/
 Backend/TryOn/static/results/
+
+# Backend Media Storage
+Backend/backend/app/media/
+Backend/backend/app/media/*

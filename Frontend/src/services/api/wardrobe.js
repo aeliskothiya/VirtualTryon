@@ -35,3 +35,13 @@ export const syncWardrobeEmbeddings = () => {
 export const getWardrobeByType = (items, type) => {
   return items.filter((item) => item.type === type);
 };
+
+// Extract image from URL
+export const extractImageFromUrl = (url) => {
+  return API.post('/wardrobe/extract-url', { url });
+};
+
+// Save temp image to wardrobe
+export const saveTempToWardrobe = (filename, type) => {
+  return API.post('/wardrobe/items/from-temp', { filename, type });
+};

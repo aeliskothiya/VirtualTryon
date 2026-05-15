@@ -16,6 +16,7 @@ import {
   Crown,
   AlertTriangle,
   X,
+  Loader2,
 } from 'lucide-react';
 import { useTryOn, useWardrobe, useNotification, useUser } from '@/hooks';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -24,6 +25,7 @@ import { validateImageFile } from '@/utils/validators';
 import { normalizeImageUrl, onImageLoad, onImageError } from '@/utils/imageLoader';
 import { AnimatedButton } from '@/components/common/MicroInteractions';
 import { useConfettiBlast } from '@/components/common/Confetti';
+import { extractImageFromUrl, saveTempToWardrobe } from '@/services/api/wardrobe';
 
 export default function TryOnPage() {
   const navigate = useNavigate();
@@ -69,6 +71,7 @@ export default function TryOnPage() {
   const [isSliderDragging, setIsSliderDragging] = useState(false);
   const [imageLoadState, setImageLoadState] = useState({}); // Track image loading
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeModalType, setUpgradeModalType] = useState('tryon'); // 'tryon' or 'wardrobe'
   const [garmentPhotoType, setGarmentPhotoType] = useState('flat-lay');
   const [currentPage, setCurrentPage] = useState(1);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -76,6 +79,13 @@ export default function TryOnPage() {
   const [numTimesteps, setNumTimesteps] = useState(30);
   const [guidanceScale, setGuidanceScale] = useState(2.0);
   const [segmentationFree, setSegmentationFree] = useState(true);
+  const [dataSource, setDataSource] = useState('wardrobe'); // 'wardrobe' or 'url'
+  const [extractionUrl, setExtractionUrl] = useState('');
+  const [extractedImage, setExtractedImage] = useState(null); // { image_url, temp_url, filename }
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isSavingTemp, setIsSavingTemp] = useState(false);
+  const [lastExtractedUrl, setLastExtractedUrl] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
 
   // Subscription checks
   const isSubscriptionExpired = profile?.is_subscription_expired;
@@ -194,9 +204,13 @@ export default function TryOnPage() {
   };
 
   const handleStartTryOn = async () => {
-    if (!selectedGarment) {
+    if (dataSource === 'wardrobe' && !selectedGarment) {
       const garmentName = garmentType === 'top' ? 'top' : garmentType === 'bottom' ? 'bottom' : 'one-piece';
       showError(`Please select a ${garmentName} item`);
+      return;
+    }
+    if (dataSource === 'url' && !extractedImage) {
+      showError('Please extract an image from a URL first');
       return;
     }
     
@@ -207,12 +221,14 @@ export default function TryOnPage() {
 
     // Block if subscription expired
     if (isSubscriptionExpired) {
+      setUpgradeModalType('tryon');
       setShowUpgradeModal(true);
       return;
     }
 
     // Block if daily limit reached
     if (remainingTryons !== null && remainingTryons !== undefined && remainingTryons <= 0) {
+      setUpgradeModalType('tryon');
       setShowUpgradeModal(true);
       return;
     }
@@ -220,21 +236,103 @@ export default function TryOnPage() {
     setStep('process');
     startTryOn(); // Lock UI globally
     try {
-      await createTryOn(
-        selectedGarment.id, 
-        userPhoto, 
-        garmentPhotoType, 
-        showAdvanced ? {
+      const advancedOpts = showAdvanced ? {
           num_timesteps: numTimesteps,
           guidance_scale: guidanceScale,
           segmentation_free: segmentationFree
-        } : {}
-      );
+      } : {};
+
+      if (dataSource === 'url' && extractedImage) {
+         await createTryOn(
+           null, 
+           userPhoto,
+           garmentPhotoType,
+           advancedOpts,
+           extractedImage.filename,
+           garmentType === 'one-piece' ? 'one-pieces' : garmentType + 's'
+         );
+      } else {
+         await createTryOn(
+           selectedGarment.id, 
+           userPhoto, 
+           garmentPhotoType, 
+           advancedOpts
+         );
+      }
       showSuccess('Try-on started!');
     } catch (error) {
       showError(error.message || 'Try-on failed');
       abortTryOn();
       setStep('select');
+    }
+  };
+
+  const handleExtractUrl = async () => {
+    if (!extractionUrl) return showError('Please enter a URL');
+
+    try {
+      new URL(extractionUrl);
+    } catch (_) {
+      showError('Please enter a valid URL formatting (e.g. https://...)');
+      return;
+    }
+
+    const supportedPattern = /^https:\/\/(?:www\.)?(?:amazon\.(?:com|in|co\.uk|de|fr|it|es|ca|com\.mx|com\.au|com\.br|sg|ae|jp)|flipkart\.com)(?:\/.*)?$/i;
+    if (!supportedPattern.test(extractionUrl)) {
+      showError('Only valid product links from Amazon and Flipkart are allowed');
+      return;
+    }
+
+    try {
+      setIsExtracting(true);
+      const res = await extractImageFromUrl(extractionUrl);
+      if (res.data?.success) {
+        setExtractedImage(res.data);
+        setLastExtractedUrl(extractionUrl);
+        setIsSaved(false);
+        showSuccess('Image extracted successfully!');
+      } else {
+        showError('Failed to extract image. Please try using a different product link.');
+        setExtractionUrl('');
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string' && detail.includes('Amazon and Flipkart')) {
+        showError(detail);
+      } else {
+        showError('Failed to extract image. Please try using a different product link.');
+      }
+      setExtractionUrl('');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleSaveTempToWardrobe = async () => {
+    if (!extractedImage) return;
+    try {
+      setIsSavingTemp(true);
+      const res = await saveTempToWardrobe(extractedImage.filename, garmentType);
+      showSuccess('Saved to wardrobe!');
+      
+      // Smart handling:
+      // Since the backend MOVED the file to wardrobe, the temp file no longer exists.
+      // We switch to wardrobe mode and select the newly created item automatically.
+      await fetchItems();
+      setSelectedGarment(res.data);
+      setDataSource('wardrobe');
+      setExtractedImage(null);
+      setExtractionUrl('');
+      setIsSaved(false);
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Failed to save to wardrobe';
+      showError(msg);
+      if (msg.toLowerCase().includes('limit') || msg.toLowerCase().includes('upgrade')) {
+        setUpgradeModalType('wardrobe');
+        setShowUpgradeModal(true);
+      }
+    } finally {
+      setIsSavingTemp(false);
     }
   };
 
@@ -356,123 +454,203 @@ export default function TryOnPage() {
 
               {/* 2. GARMENT SELECTION GRID */}
               <section>
-                <div className="mb-4">
-                  <h2 className="text-2xl font-bold text-charcoal mb-2">
-                    Select Your Garment
-                  </h2>
-                  <p className="text-warm-taupe">Pick an item from your {garmentType.replace('-', ' ')} collection</p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-charcoal mb-2">
+                      Select Your Garment
+                    </h2>
+                    <p className="text-warm-taupe">Pick an item from your {garmentType.replace('-', ' ')} collection or extract from URL</p>
+                  </div>
+                  <div className="flex p-1 bg-ivory rounded-xl border border-warm-gray/20">
+                    <button
+                      onClick={() => setDataSource('wardrobe')}
+                      className={`flex-1 px-6 py-2 rounded-lg text-xs font-bold transition-all ${
+                        dataSource === 'wardrobe'
+                          ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                          : 'text-warm-taupe hover:text-charcoal'
+                      }`}
+                    >
+                      Wardrobe
+                    </button>
+                    <button
+                      onClick={() => setDataSource('url')}
+                      className={`flex-1 px-6 py-2 rounded-lg text-xs font-bold transition-all ${
+                        dataSource === 'url'
+                          ? 'bg-white text-gold-accent shadow-sm ring-1 ring-gold-accent/10'
+                          : 'text-warm-taupe hover:text-charcoal'
+                      }`}
+                    >
+                      URL Link
+                    </button>
+                  </div>
                 </div>
 
-                {garments.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="card-luxury text-center py-16"
-                  >
-                    <ImageOff size={48} className="mx-auto text-warm-gray mb-4" />
-                    <h3 className="text-xl font-bold text-charcoal mb-2">
-                      No garments yet
-                    </h3>
-                    <p className="text-warm-taupe mb-6">
-                      Build your wardrobe first to start trying on
-                    </p>
-                    <AnimatedButton
-                      variant="primary"
-                      onClick={() => navigate('/wardrobe')}
-                    >
-                      Go to Wardrobe
-                    </AnimatedButton>
-                  </motion.div>
-                ) : (
-                  <div className="space-y-6">
-                    <motion.div
-                      variants={topContainerVariants}
-                      initial="hidden"
-                      animate="visible"
-                      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                    >
-                      {garments
-                        .slice((currentPage - 1) * 10, currentPage * 10)
-                        .map((item) => (
-                          <motion.button
-                            key={item.id}
-                            variants={topItemVariants}
-                            whileHover="hover"
-                            onClick={() => setSelectedGarment(item)}
-                            className={`card-garment relative overflow-hidden group cursor-pointer transition-all ${selectedGarment?.id === item.id
-                                ? 'ring-2 ring-gold-accent'
-                                : 'hover:ring-1 hover:ring-gold-accent'
-                              }`}
-                          >
-                            {/* Image */}
-                            <div className="aspect-[4/5] overflow-hidden rounded-md bg-white">
-                              {imageLoadState[item.id] !== 'error' ? (
-                                <>
-                                  {imageLoadState[item.id] !== 'loaded' && (
-                                    <motion.div
-                                      animate={{ opacity: [0.5, 1, 0.5] }}
-                                      transition={{ duration: 1.5, repeat: Infinity }}
-                                      className="absolute inset-0 bg-warm-gray/20"
-                                    />
+                {dataSource === 'wardrobe' ? (
+                  <>
+                    {garments.length === 0 ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="card-luxury text-center py-16"
+                      >
+                        <ImageOff size={48} className="mx-auto text-warm-gray mb-4" />
+                        <h3 className="text-xl font-bold text-charcoal mb-2">
+                          No garments yet
+                        </h3>
+                        <p className="text-warm-taupe mb-6">
+                          Build your wardrobe first to start trying on
+                        </p>
+                        <AnimatedButton
+                          variant="primary"
+                          onClick={() => navigate('/wardrobe')}
+                        >
+                          Go to Wardrobe
+                        </AnimatedButton>
+                      </motion.div>
+                    ) : (
+                      <div className="space-y-6">
+                        <motion.div
+                          variants={topContainerVariants}
+                          initial="hidden"
+                          animate="visible"
+                          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+                        >
+                          {garments
+                            .slice((currentPage - 1) * 10, currentPage * 10)
+                            .map((item) => (
+                              <motion.button
+                                key={item.id}
+                                variants={topItemVariants}
+                                whileHover="hover"
+                                onClick={() => setSelectedGarment(item)}
+                                className={`card-garment relative overflow-hidden group cursor-pointer transition-all ${selectedGarment?.id === item.id
+                                    ? 'ring-2 ring-gold-accent'
+                                    : 'hover:ring-1 hover:ring-gold-accent'
+                                  }`}
+                              >
+                                {/* Image */}
+                                <div className="aspect-[4/5] overflow-hidden rounded-md bg-white">
+                                  {imageLoadState[item.id] !== 'error' ? (
+                                    <>
+                                      {imageLoadState[item.id] !== 'loaded' && (
+                                        <motion.div
+                                          animate={{ opacity: [0.5, 1, 0.5] }}
+                                          transition={{ duration: 1.5, repeat: Infinity }}
+                                          className="absolute inset-0 bg-warm-gray/20"
+                                        />
+                                      )}
+                                      <motion.img
+                                        whileHover={{ scale: 1.05 }}
+                                        src={normalizeImageUrl(item.image_url) || item.image_url}
+                                        alt="Garment"
+                                        className="w-full h-full object-contain p-2"
+                                        onLoad={() =>
+                                          setImageLoadState((prev) => ({ ...prev, [item.id]: 'loaded' }))
+                                        }
+                                        onError={() => {
+                                          onImageError(item.image_url);
+                                          setImageLoadState((prev) => ({ ...prev, [item.id]: 'error' }));
+                                        }}
+                                      />
+                                    </>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                      <ImageOff size={24} className="text-warm-gray" />
+                                    </div>
                                   )}
-                                  <motion.img
-                                    whileHover={{ scale: 1.05 }}
-                                    src={normalizeImageUrl(item.image_url) || item.image_url}
-                                    alt="Garment"
-                                    className="w-full h-full object-contain p-2"
-                                    onLoad={() =>
-                                      setImageLoadState((prev) => ({ ...prev, [item.id]: 'loaded' }))
-                                    }
-                                    onError={() => {
-                                      onImageError(item.image_url);
-                                      setImageLoadState((prev) => ({ ...prev, [item.id]: 'error' }));
-                                    }}
-                                  />
-                                </>
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <ImageOff size={24} className="text-warm-gray" />
                                 </div>
-                              )}
-                            </div>
 
-                            {/* Selection Badge */}
-                            <AnimatePresence>
-                              {selectedGarment?.id === item.id && (
-                                <motion.div
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  exit={{ scale: 0 }}
-                                  className="absolute top-2 right-2 w-6 h-6 bg-gold-accent rounded-full flex items-center justify-center text-cream"
-                                >
-                                  ✓
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </motion.button>
-                        ))}
-                    </motion.div>
+                                {/* Selection Badge */}
+                                <AnimatePresence>
+                                  {selectedGarment?.id === item.id && (
+                                    <motion.div
+                                      initial={{ scale: 0 }}
+                                      animate={{ scale: 1 }}
+                                      exit={{ scale: 0 }}
+                                      className="absolute top-2 right-2 w-6 h-6 bg-gold-accent rounded-full flex items-center justify-center text-cream"
+                                    >
+                                      ✓
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </motion.button>
+                            ))}
+                        </motion.div>
 
-                    {Math.ceil(garments.length / 10) > 1 && (
-                      <div className="flex justify-center items-center gap-4">
-                        <button
-                          onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                          disabled={currentPage === 1}
-                          className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
-                        >
-                          Previous
-                        </button>
-                        <span className="text-sm font-semibold text-charcoal">
-                          Page {currentPage} of {Math.ceil(garments.length / 10)}
-                        </span>
-                        <button
-                          onClick={() => setCurrentPage(p => Math.min(p + 1, Math.ceil(garments.length / 10)))}
-                          disabled={currentPage === Math.ceil(garments.length / 10)}
-                          className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
-                        >
-                          Next
-                        </button>
+                        {Math.ceil(garments.length / 10) > 1 && (
+                          <div className="flex justify-center items-center gap-4">
+                            <button
+                              onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                              disabled={currentPage === 1}
+                              className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
+                            >
+                              Previous
+                            </button>
+                            <span className="text-sm font-semibold text-charcoal">
+                              Page {currentPage} of {Math.ceil(garments.length / 10)}
+                            </span>
+                            <button
+                              onClick={() => setCurrentPage(p => Math.min(p + 1, Math.ceil(garments.length / 10)))}
+                              disabled={currentPage === Math.ceil(garments.length / 10)}
+                              className="px-4 py-2 rounded-lg border border-warm-gray/30 text-charcoal font-semibold disabled:opacity-50 hover:bg-warm-gray/10 transition-colors"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
                       </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-warm-gray/10 relative">
+                    {/* Loader Overlay */}
+                    {isExtracting && (
+                      <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 rounded-2xl flex flex-col items-center justify-center">
+                        <Loader2 className="w-8 h-8 text-gold-accent animate-spin mb-4" />
+                        <p className="text-charcoal font-bold">Extracting image, please wait...</p>
+                      </div>
+                    )}
+                    <div className="flex flex-col md:flex-row gap-4 mb-6">
+                      <div className="flex-1">
+                        <input 
+                          type="url"
+                          placeholder="Paste Amazon or Flipkart product URL here..."
+                          value={extractionUrl}
+                          onChange={(e) => setExtractionUrl(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-warm-gray/30 focus:outline-none focus:border-gold-accent focus:ring-1 focus:ring-gold-accent text-charcoal placeholder-warm-taupe"
+                          disabled={isExtracting}
+                        />
+                        <p className="text-xs text-warm-taupe mt-2 ml-1 font-medium">
+                          * Currently only supporting product links from Amazon and Flipkart.
+                        </p>
+                      </div>
+                      <AnimatedButton 
+                        variant="primary" 
+                        onClick={handleExtractUrl} 
+                        disabled={isExtracting || !extractionUrl || extractionUrl === lastExtractedUrl}
+                        className="h-[50px]"
+                      >
+                        {isExtracting ? 'Extracting...' : 'Extract Image'}
+                      </AnimatedButton>
+                    </div>
+
+                    {extractedImage && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center p-6 border border-warm-gray/20 rounded-xl bg-ivory">
+                        <img src={normalizeImageUrl(extractedImage.temp_url)} alt="Extracted" className="w-64 h-64 object-contain rounded-xl shadow-luxury-sm bg-white mb-6" />
+                        <div className="flex gap-4">
+                          <AnimatedButton 
+                            variant="outline" 
+                            onClick={handleSaveTempToWardrobe} 
+                            disabled={isSavingTemp || isSaved}
+                            className={isSaved ? "bg-sage/10 border-sage text-sage" : ""}
+                          >
+                            {isSavingTemp ? 'Saving...' : isSaved ? '✓ Saved to Wardrobe' : 'Save to Wardrobe'}
+                          </AnimatedButton>
+                        </div>
+                        <p className="text-xs text-warm-taupe mt-4">
+                          Or click "Start Try-On" below to use it instantly without saving.
+                        </p>
+                      </motion.div>
                     )}
                   </div>
                 )}
@@ -619,8 +797,9 @@ export default function TryOnPage() {
                           handleStartTryOn();
                         }
                       }}
+                      disabled={isProcessing}
                       className={`flex-[1.2] flex items-center justify-center gap-2 font-semibold transition-all py-4 ${
-                        isProcessing ? 'bg-gold-accent/80 shadow-inner ring-2 ring-gold-accent/20' : ''
+                        isProcessing ? 'bg-gold-accent/80 shadow-inner ring-2 ring-gold-accent/20 cursor-not-allowed opacity-80' : ''
                       }`}
                     >
                       {isProcessing ? (
@@ -778,7 +957,7 @@ export default function TryOnPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.5 }}
-              className="flex flex-col items-center justify-center py-20 space-y-10"
+              className="flex flex-col items-center justify-center py-20 space-y-6"
             >
               {/* Animated Loader */}
               <motion.div
@@ -799,13 +978,13 @@ export default function TryOnPage() {
                 <h2 className="text-3xl font-bold text-charcoal mb-3">
                   Generating Your Try-On
                 </h2>
-                <p className="text-warm-taupe mb-8">
+                <p className="text-warm-taupe mb-2">
                   Our AI is analyzing your photo and applying the garment with precise accuracy...
                 </p>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full max-w-sm space-y-4">
+              <div className="w-full max-w-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-charcoal">Progress</span>
                   <motion.span
@@ -834,7 +1013,7 @@ export default function TryOnPage() {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center gap-6 mt-8">
+              <div className="flex flex-col items-center gap-3 mt-4">
                 <p className="text-sm text-warm-taupe">
                   ⏱️ It takes few minutes to generate the try-on.
                 </p>
@@ -1050,15 +1229,21 @@ export default function TryOnPage() {
                 </div>
 
                 <h3 className="text-2xl font-bold text-charcoal text-center mb-3">
-                  {isSubscriptionExpired ? 'Subscription Expired' : 'Daily Limit Reached'}
+                  {isSubscriptionExpired 
+                    ? 'Subscription Expired' 
+                    : upgradeModalType === 'wardrobe' 
+                      ? 'Wardrobe Full' 
+                      : 'Daily Limit Reached'}
                 </h3>
 
                 <p className="text-warm-taupe text-center mb-8">
                   {isSubscriptionExpired
                     ? "Your premium access has expired. Renew your subscription to continue creating stunning virtual looks."
-                    : planCode === 'free'
-                      ? "You've used all your free credits for today. Upgrade to a premium plan to continue your style journey."
-                      : "You've reached your daily try-on limit for the " + planCode + " plan. Upgrade for more creations or try again tomorrow."}
+                    : upgradeModalType === 'wardrobe'
+                      ? `You've reached the wardrobe storage limit for the ${planCode} plan. Upgrade to a higher plan to add more items to your collection.`
+                      : planCode === 'free'
+                        ? "You've used all your free credits for today. Upgrade to a premium plan to continue your style journey."
+                        : `You've reached your daily try-on limit for the ${planCode} plan. Upgrade for more creations or try again tomorrow.`}
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4">

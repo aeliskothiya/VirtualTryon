@@ -16,13 +16,16 @@ from app.services.storage_service import (
     save_upload_file,
 )
 from app.services.tryon_service import run_tryon
+from app.services.cloudinary_service import upload_to_cloudinary
+import requests
+from pathlib import Path
 from app.services.subscription_service import (
     ensure_tryon_limit, 
     get_remaining_tryons_today, 
     should_save_tryon_output, 
     get_subscription_plan
 )
-from app.utils.helpers import serialize_document, serialize_many, utcnow
+from app.utils.helpers import serialize_document, serialize_many, utcnow, ensure_local_file
 from bson.objectid import ObjectId
 from typing import Dict
 
@@ -83,9 +86,13 @@ def background_tryon_task(
         updater = ProgressUpdater(db_uri, db_name, job_id)
         print(f"DEBUG: Starting run_tryon with callback: {updater}")
 
+        # 1. Ensure inputs are local for the AI engine
+        local_input_photo = ensure_local_file(input_photo_path)
+        local_garment = ensure_local_file(garment_path)
+
         run_tryon(
-            input_photo_path, 
-            garment_path, 
+            local_input_photo, 
+            local_garment, 
             output_path, 
             garment_photo_type=garment_photo_type, 
             category=category,
@@ -95,11 +102,25 @@ def background_tryon_task(
             callback=updater
         )
         
+        # 2. Upload the local result to Cloudinary
+        output_url = upload_to_cloudinary(output_path, folder=f"tryon_results/{job_id}")
+        
+        # 3. Cleanup local files
+        try:
+            if local_input_photo != input_photo_path and os.path.exists(local_input_photo):
+                os.remove(local_input_photo)
+            if local_garment != garment_path and os.path.exists(local_garment):
+                os.remove(local_garment)
+            if os.path.exists(output_path):
+                os.remove(output_path)
+        except:
+            pass
+
         db.tryon_jobs.update_one(
             {"_id": ObjectId(job_id)},
             {
                 "$set": {
-                    "output_url": absolute_to_media_url(output_path),
+                    "output_url": output_url,
                     "status": "completed",
                     "progress": 100,
                     "completed_at": utcnow(),
@@ -119,23 +140,58 @@ def background_tryon_task(
         )
     finally:
         client.close()
+        
+        # Cleanup temporary garment if used
+        try:
+            import os
+            from pathlib import Path
+            from app.core.config import settings
+            garment_p = Path(garment_path)
+            temp_dir = settings.media_root / "temp"
+            if garment_p.is_relative_to(temp_dir) and garment_p.exists():
+                os.remove(garment_p)
+                logger.info(f"Cleaned up temporary garment file: {garment_path}")
+        except Exception as cleanup_err:
+            logger.error(f"Failed to cleanup temp garment {garment_path}: {cleanup_err}")
 
 
 def create_tryon(
-    top_item_id: str,
+    top_item_id: str | None,
     override_photo: UploadFile | None,
     garment_photo_type: str,
     current_user: dict,
     db: Database,
+    temp_garment_filename: str | None = None,
+    garment_category: str | None = None,
     vton_num_timesteps: int | None = None,
     vton_guidance_scale: float | None = None,
     vton_segmentation_free: bool | None = None,
 ) -> dict:
-    item = get_wardrobe_item_for_user(db, top_item_id, str(current_user["_id"]), include_inactive=False)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Wardrobe item not found")
-    if item["type"] not in ("top", "bottom", "one-piece"):
-        raise HTTPException(status_code=400, detail="Only top, bottom, and one-piece items can be used for try-on")
+    if not top_item_id and not temp_garment_filename:
+        raise HTTPException(status_code=400, detail="Must provide either top_item_id or temp_garment_filename")
+
+    if top_item_id:
+        item = get_wardrobe_item_for_user(db, top_item_id, str(current_user["_id"]), include_inactive=False)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Wardrobe item not found")
+        if item["type"] not in ("top", "bottom", "one-piece"):
+            raise HTTPException(status_code=400, detail="Only top, bottom, and one-piece items can be used for try-on")
+        garment_path = item["image_url"]
+        if item["type"] == "top": category = "tops"
+        elif item["type"] == "bottom": category = "bottoms"
+        else: category = "one-pieces"
+        top_item_id_val = str(item["_id"])
+    else:
+        from app.core.config import settings
+        import shutil
+        temp_path = settings.media_root / "temp" / temp_garment_filename
+        if not temp_path.exists():
+            raise HTTPException(status_code=404, detail="Temporary image not found")
+        garment_path = str(temp_path)
+        if garment_category not in ("tops", "bottoms", "one-pieces"):
+            raise HTTPException(status_code=400, detail="garment_category must be tops, bottoms, or one-pieces")
+        category = garment_category
+        top_item_id_val = None
 
     ensure_tryon_limit(db, current_user)
 
@@ -143,20 +199,20 @@ def create_tryon(
     input_photo_used = "profile"
 
     if override_photo is not None:
-        override_path = create_override_photo_path(str(current_user["_id"]), override_photo.filename)
-        save_upload_file(override_photo, override_path)
-        user_photo_url = absolute_to_media_url(override_path)
+        # Upload override photo to Cloudinary
+        user_photo_url = upload_to_cloudinary(override_photo.file, folder=f"overrides/{current_user['_id']}")
         input_photo_used = "override"
 
-    input_photo_path = media_url_to_absolute(user_photo_url)
-    garment_path = media_url_to_absolute(item["image_url"])
+    input_photo_path = user_photo_url
+
     if input_photo_path is None or garment_path is None:
         raise HTTPException(status_code=400, detail="Please upload your photo")
 
     job = {
         "user_id": str(current_user["_id"]),
-        "top_item_id": str(item["_id"]),
+        "top_item_id": top_item_id_val,
         "user_photo_path": user_photo_url,
+
         "input_photo_used": input_photo_used,
         "output_url": None,
         "status": "processing",
@@ -170,13 +226,6 @@ def create_tryon(
 
     try:
         output_path = create_tryon_output_path(str(current_user["_id"]), str(job["_id"]))
-        # Determine category from item type (map to VTON categories)
-        if item["type"] == "top":
-            category = "tops"
-        elif item["type"] == "bottom":
-            category = "bottoms"
-        else:  # one-piece
-            category = "one-pieces"
 
         # Start background process
         # We need the DB URI to reconnect in the child process

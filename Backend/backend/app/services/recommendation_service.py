@@ -6,7 +6,10 @@ from PIL import Image
 
 from app.services.wardrobe_embedding_service import get_or_create_item_embedding
 from app.services.storage_service import media_url_to_absolute
+from app.utils.helpers import ensure_local_file
 from pymongo.database import Database
+from pathlib import Path
+import os
 
 
 def _safe_norm(vector: list[float]) -> float:
@@ -49,12 +52,21 @@ def _clip01(value: float) -> float:
 
 def _top_visual_features(top: dict) -> tuple[float, float, float, float, float] | None:
     image_url = top.get("image_url")
-    image_path = media_url_to_absolute(image_url)
-    if image_path is None or not image_path.exists():
+    local_path = ensure_local_file(image_url)
+    
+    if not local_path or not os.path.exists(local_path):
         return None
 
-    with Image.open(image_path).convert("RGB") as image:
-        arr = np.asarray(image, dtype=np.float32) / 255.0
+    try:
+        with Image.open(local_path).convert("RGB") as image:
+            arr = np.asarray(image, dtype=np.float32) / 255.0
+    finally:
+        # Cleanup if it was a downloaded file
+        if local_path != image_url and os.path.exists(local_path):
+            try:
+                os.remove(local_path)
+            except:
+                pass
 
     r = arr[:, :, 0]
     g = arr[:, :, 1]
