@@ -25,6 +25,16 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Create a JWT access token with optional session_id for single-session enforcement.
+    
+    Args:
+        data: Dictionary containing token claims (email, kind, session_id, etc.)
+        expires_delta: Optional custom expiration time
+        
+    Returns:
+        Encoded JWT token string
+    """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})

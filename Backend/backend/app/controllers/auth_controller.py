@@ -5,6 +5,10 @@ from app.core.config import settings
 from app.database.models import EMAIL_VERIFICATIONS
 from app.database.repositories.admin_repository import get_admin_by_email
 from app.database.repositories.user_repository import get_user, get_user_by_email
+from app.database.repositories.session_repository import (
+    create_session,
+    invalidate_all_user_sessions,
+)
 from app.schemas import AuthResponse, LoginRequest, RegisterStepOneRequest
 from app.services.auth_service import create_access_token, get_password_hash, verify_password
 from app.services.storage_service import absolute_to_media_url, create_profile_photo_path, save_upload_file
@@ -46,7 +50,20 @@ def register_step_one(payload: RegisterStepOneRequest, db: Database) -> AuthResp
     result = db.users.insert_one(user)
     user["_id"] = result.inserted_id
     db_user = get_user(db, str(user["_id"]))
-    token = create_access_token({"email": db_user["email"], "kind": "user"})
+    
+    # Create session for newly registered user
+    session = create_session(
+        db,
+        str(user["_id"]),
+        email,
+        "user"
+    )
+    
+    token = create_access_token({
+        "email": db_user["email"],
+        "kind": "user",
+        "session_id": session["session_id"]
+    })
     return AuthResponse(access_token=token, kind="user", user=serialize_document(db_user))
 
 
@@ -72,20 +89,81 @@ def register_step_two(gender_preference: str, photo: UploadFile, current_user: d
     return serialize_document(updated_user)
 
 
-def login(payload: LoginRequest, db: Database) -> AuthResponse:
+def login(payload: LoginRequest, db: Database, ip_address: str = None, user_agent: str = None) -> AuthResponse:
+    """
+    Login endpoint with single-session enforcement.
+    
+    - Validates credentials
+    - Invalidates all previous sessions for the user
+    - Creates a new session
+    - Returns JWT token with session_id embedded
+    
+    Args:
+        payload: Login request with email and password
+        db: MongoDB database instance
+        ip_address: Client IP address (optional)
+        user_agent: Client user agent (optional)
+        
+    Returns:
+        AuthResponse with access token and user info
+    """
     admin = get_admin_by_email(db, payload.email)
     if admin is not None:
         if not verify_password(payload.password, admin["hashed_password"]):
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        token = create_access_token({"email": admin["email"], "kind": "admin"})
-        return AuthResponse(access_token=token, kind="admin", admin=serialize_document(admin))
+        # Single-session: Invalidate all previous admin sessions
+        invalidated_count = invalidate_all_user_sessions(db, str(admin["_id"]))
+        
+        # Create new session for admin
+        session = create_session(
+            db,
+            str(admin["_id"]),
+            admin["email"],
+            "admin",
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        token = create_access_token({
+            "email": admin["email"],
+            "kind": "admin",
+            "session_id": session["session_id"]
+        })
+        return AuthResponse(
+            access_token=token,
+            kind="admin",
+            admin=serialize_document(admin),
+            invalidated_sessions=invalidated_count,
+        )
 
     user = get_user_by_email(db, payload.email)
     if user is None or not verify_password(payload.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token({"email": user["email"], "kind": "user"})
-    return AuthResponse(access_token=token, kind="user", user=serialize_document(user))
+    # Single-session: Invalidate all previous user sessions
+    invalidated_count = invalidate_all_user_sessions(db, str(user["_id"]))
+    
+    # Create new session for user
+    session = create_session(
+        db,
+        str(user["_id"]),
+        user["email"],
+        "user",
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    
+    token = create_access_token({
+        "email": user["email"],
+        "kind": "user",
+        "session_id": session["session_id"]
+    })
+    return AuthResponse(
+        access_token=token,
+        kind="user",
+        user=serialize_document(user),
+        invalidated_sessions=invalidated_count,
+    )
 
 __all__ = ["login", "register_step_one", "register_step_two"]

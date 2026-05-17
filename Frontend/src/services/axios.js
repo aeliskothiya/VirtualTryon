@@ -21,7 +21,7 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - Handle auth errors
+// Response interceptor - Handle auth errors and session conflicts
 API.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -35,6 +35,19 @@ API.interceptors.response.use(
 
     // Handle 401 Unauthorized
     if (error.response?.status === 401 && !isPublicAuth401) {
+      const errorDetail = error.response?.data?.detail || '';
+      
+      // Check for session conflict/invalidation messages
+      const isSessionConflict = 
+        errorDetail.includes('session has been invalidated') ||
+        errorDetail.includes('logged in from another device') ||
+        errorDetail.includes('missing session ID');
+      
+      // Store the session conflict state so pages can show custom messages
+      if (isSessionConflict) {
+        sessionStorage.setItem('sessionConflictMessage', errorDetail);
+      }
+      
       // Clear both regular user and admin storage
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');

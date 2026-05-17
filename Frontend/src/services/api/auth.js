@@ -50,3 +50,8 @@ export const resetPassword = (reset_token, new_password, confirm_new_password) =
     confirm_password: confirm_new_password,
   });
 };
+
+// Logout - Invalidate current session on backend
+export const logout = () => {
+  return API.post('/auth/logout');
+};

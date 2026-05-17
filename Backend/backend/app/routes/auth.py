@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status, Request
 from pymongo.database import Database
 
 from app.controllers.auth_controller import login, register_step_one, register_step_two
@@ -8,7 +8,7 @@ from app.controllers.otp_controller import (
     verify_password_reset_otp,
     reset_password_with_token,
 )
-from app.core.deps import get_current_active_user
+from app.core.deps import get_current_active_user, oauth2_scheme
 from app.database.connection import get_db
 from app.schemas import AuthResponse, LoginRequest, RegisterStepOneRequest, UserProfile
 from app.schemas.otp import SendOTPRequest, VerifyOTPRequest, OTPResponse
@@ -33,8 +33,40 @@ async def register_step_two_route(
 
 
 @router.post("/login", response_model=AuthResponse)
-def login_route(payload: LoginRequest, db: Database = Depends(get_db)):
-    return login(payload, db)
+def login_route(
+    payload: LoginRequest,
+    request: Request,
+    db: Database = Depends(get_db)
+):
+    """
+    Login endpoint with single-session enforcement.
+    Invalidates all previous sessions for the user and creates a new one.
+    """
+    # Extract client IP address (handles X-Forwarded-For proxy header)
+    ip_address = request.headers.get("x-forwarded-for", request.client.host if request.client else None)
+    
+    # Extract user agent
+    user_agent = request.headers.get("user-agent")
+    
+    return login(payload, db, ip_address=ip_address, user_agent=user_agent)
+
+
+@router.post("/logout", response_model=dict)
+def logout_route(
+    current_user: dict = Depends(get_current_active_user),
+    token: str = Depends(oauth2_scheme),
+    db: Database = Depends(get_db)
+):
+    """
+    Logout endpoint that invalidates the current session.
+    
+    This implements single-session enforcement by:
+    - Marking the current session as inactive
+    - Forcing the client to clear their token
+    - Preventing further API calls with this token
+    """
+    from app.controllers.logout_controller import logout
+    return logout(token, db)
 
 
 @router.post("/send-otp", response_model=OTPResponse)

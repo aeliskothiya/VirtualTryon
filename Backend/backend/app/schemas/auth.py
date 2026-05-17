@@ -7,6 +7,7 @@ from app.schemas.user import UserProfile
 class TokenData(BaseModel):
     email: str | None = None
     kind: str | None = None
+    session_id: str | None = None  # Session ID for single-session enforcement
 
 
 class RegisterStepOneRequest(BaseModel):
@@ -27,5 +28,6 @@ class AuthResponse(BaseModel):
     kind: str = "user"
     user: UserProfile | None = None
     admin: AdminOut | None = None
+    invalidated_sessions: int = 0
 
 __all__ = ["AuthResponse", "LoginRequest", "RegisterStepOneRequest", "TokenData"]

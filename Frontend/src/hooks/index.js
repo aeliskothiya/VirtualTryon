@@ -6,6 +6,7 @@ import { useRecommendation } from '@/contexts/RecommendationContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useNotification } from '@/contexts/NotificationContext';
+import { useSessionConflict } from './useSessionConflict';
 
 // Re-export all hooks for convenience
 export {
@@ -17,6 +18,7 @@ export {
   useSubscription,
   useAdmin,
   useNotification,
+  useSessionConflict,
 };
 
 // Combined hook for main app state

@@ -168,8 +168,10 @@ export const AuthProvider = ({ children }) => {
       setUser(processedUser);
       setIsAuthenticated(true);
 
-      console.log('[Auth] Login successful. Kind:', kind, 'Registered:', processedUser.is_fully_registered);
-      return { access_token, user: processedUser, kind };
+      const invalidated = response.data.invalidated_sessions || 0;
+
+      console.log('[Auth] Login successful. Kind:', kind, 'Registered:', processedUser.is_fully_registered, 'invalidated_sessions:', invalidated);
+      return { access_token, user: processedUser, kind, invalidated_sessions: invalidated };
     } catch (err) {
       const errorMsg = extractErrorMessage(err, 'Login failed');
       setError(errorMsg);
@@ -179,16 +181,25 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('token_type');
-    localStorage.removeItem('kind');
+  const logout = useCallback(async () => {
+    try {
+      // Attempt to invalidate session on backend
+      await authAPI.logout();
+    } catch (err) {
+      // Log error but continue with client-side logout even if backend fails
+      console.warn('Failed to invalidate session on backend:', err);
+    } finally {
+      // Always clear client-side auth data
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('token_type');
+      localStorage.removeItem('kind');
 
-    setToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
-    setError(null);
+      setToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      setError(null);
+    }
   }, []);
 
   const sendPasswordResetOTP = useCallback(async (email) => {
