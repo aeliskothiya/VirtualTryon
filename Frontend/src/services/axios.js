@@ -25,8 +25,16 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   (error) => {
+    const requestUrl = String(error.config?.url || '').toLowerCase();
+
+    // Public auth endpoints can legitimately return 401 (e.g., wrong password).
+    // Keep these errors in-page so forms can show toast/inline feedback.
+    const isPublicAuth401 =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/password-reset/verify');
+
     // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isPublicAuth401) {
       // Clear both regular user and admin storage
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');

@@ -231,7 +231,7 @@ export default function SubscriptionPage() {
 
       <div className="container-luxury py-6 sm:py-10">
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="sync">
           {/* EXPIRATION NOTICE */}
           {profile?.is_subscription_expired && (
             <motion.div
