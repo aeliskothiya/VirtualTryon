@@ -75,7 +75,11 @@ export const TryOnProvider = ({ children }) => {
         formData.append('override_photo', overridePhoto);
       }
 
-      formData.append('garment_photo_type', garmentPhotoType);
+      // Normalize frontend values to backend-accepted values.
+      // Backend expects 'model' or 'flat-lay'. Some UI code uses 'on-model'.
+      const _gpt = (garmentPhotoType || 'flat-lay').toString().trim().toLowerCase();
+      const normalizedGarmentPhotoType = _gpt === 'on-model' ? 'model' : _gpt;
+      formData.append('garment_photo_type', normalizedGarmentPhotoType);
       
       if (advancedOptions.num_timesteps) {
         formData.append('vton_num_timesteps', advancedOptions.num_timesteps);
